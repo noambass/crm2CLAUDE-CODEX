@@ -121,7 +121,6 @@ export default function ClientDetails() {
             <Badge variant="outline">{profile.account.status || 'active'}</Badge>
             <ClientTypeBadge type={profile.account.client_type || 'private'} />
           </div>
-          {primary?.full_name ? <div>איש קשר: {primary.full_name}</div> : null}
           {primary?.phone ? <div dir="ltr">טלפון: {primary.phone}</div> : null}
           {primary?.email ? <div dir="ltr">אימייל: {primary.email}</div> : null}
           {primary?.address_text ? (

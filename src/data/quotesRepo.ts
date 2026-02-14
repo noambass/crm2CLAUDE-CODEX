@@ -1,4 +1,5 @@
-﻿import { supabase } from '@/api/supabaseClient';
+import { supabase } from '@/api/supabaseClient';
+import { normalizeAddressText } from '@/lib/geo/coordsPolicy';
 
 export function getQuoteAccountName(quote) {
   const relation = Array.isArray(quote?.accounts) ? quote.accounts[0] : quote?.accounts;
@@ -40,7 +41,7 @@ export async function saveDraftQuote(input) {
 
   const normalizedTitle = String(input.title || '').trim();
   const normalizedDescription = String(input.description || '').trim();
-  const normalizedAddress = String(input.addressText || '').trim();
+  const normalizedAddress = normalizeAddressText(input.addressText);
   const normalizedArrivalNotes = String(input.arrivalNotes || '').trim();
   const normalizedNotes = String(input.notes || '').trim();
 

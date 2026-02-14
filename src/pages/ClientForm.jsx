@@ -48,6 +48,7 @@ export default function ClientForm() {
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const [addressAssist, setAddressAssist] = useState('');
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
@@ -106,6 +107,18 @@ export default function ClientForm() {
     }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
+  }
+
+  function handleAddressChange(text, meta = {}) {
+    setFormData((prev) => ({ ...prev, addressText: text }));
+    if (meta?.autofixed) {
+      setAddressAssist(`הכתובת תוקנה אוטומטית: ${text}`);
+    } else if (meta?.isManual) {
+      setAddressAssist('');
+    }
+    if (errors.addressText) {
+      setErrors((prev) => ({ ...prev, addressText: null }));
+    }
   }
 
   async function handleSubmit(event) {
@@ -171,13 +184,13 @@ export default function ClientForm() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">שם מלא *</Label>
+              <Label htmlFor="fullName">שם לקוח *</Label>
               <Input
                 id="fullName"
                 data-testid="client-full-name"
                 value={formData.fullName}
                 onChange={(e) => setFormData((prev) => ({ ...prev, fullName: e.target.value }))}
-                placeholder="שם לקוח או איש קשר"
+                placeholder="שם הלקוח"
                 className={errors.fullName ? 'border-red-500' : ''}
               />
               {errors.fullName ? <p className="text-xs text-red-600">{errors.fullName}</p> : null}
@@ -216,12 +229,14 @@ export default function ClientForm() {
                 id="addressText"
                 data-testid="client-address"
                 value={formData.addressText}
-                onChangeText={(text) => setFormData((prev) => ({ ...prev, addressText: text }))}
-                onPlaceSelected={({ addressText }) => setFormData((prev) => ({ ...prev, addressText }))}
+                onChangeText={handleAddressChange}
+                onPlaceSelected={({ addressText }) => handleAddressChange(addressText, { isManual: false })}
+                onAddressAutofix={({ normalized }) => setAddressAssist(`הכתובת תוקנה אוטומטית: ${normalized}`)}
                 placeholder="הרצל 10, אשדוד"
                 className={errors.addressText ? 'border-red-500' : ''}
               />
-              <p className="text-xs text-slate-500">פורמט חובה: רחוב ומספר, עיר. לדוגמה: הרצל 10, אשדוד</p>
+              <p className="text-xs text-slate-500">פורמט מומלץ: רחוב ומספר, עיר. אפשר להקליד גם בלי פסיק והמערכת תתקן.</p>
+              {addressAssist ? <p className="text-xs text-emerald-700">{addressAssist}</p> : null}
               {errors.addressText ? <p className="text-xs text-red-600">{errors.addressText}</p> : null}
             </div>
 

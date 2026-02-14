@@ -24,5 +24,4 @@ export interface Account {
 export interface ClientProfile {
   account: Account;
   primaryContact: Contact | null;
-  contacts: Contact[];
 }

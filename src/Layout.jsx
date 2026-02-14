@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { supabase } from '@/api/supabaseClient';
@@ -81,6 +81,7 @@ export default function Layout({ children, currentPageName }) {
   const [profile, setProfile] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [globalSearchResults, setGlobalSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -89,6 +90,8 @@ export default function Layout({ children, currentPageName }) {
 
   useEffect(() => {
     setQuickCreateOpen(false);
+    setMobileMenuOpen(false);
+    setMobileSearchOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -96,7 +99,9 @@ export default function Layout({ children, currentPageName }) {
       setProfile(null);
       return;
     }
+
     let mounted = true;
+
     const loadProfile = async () => {
       try {
         const { data, error } = await supabase
@@ -104,6 +109,7 @@ export default function Layout({ children, currentPageName }) {
           .select('full_name, phone')
           .eq('id', user.id)
           .maybeSingle();
+
         if (!mounted) return;
         if (error) throw error;
         setProfile(data || null);
@@ -112,7 +118,9 @@ export default function Layout({ children, currentPageName }) {
         setProfile(null);
       }
     };
+
     loadProfile();
+
     return () => {
       mounted = false;
     };
@@ -123,6 +131,7 @@ export default function Layout({ children, currentPageName }) {
       setGlobalSearchResults([]);
       return undefined;
     }
+
     const q = normalizeText(globalSearchQuery);
     if (q.length < 2) {
       setGlobalSearchResults([]);
@@ -157,6 +166,7 @@ export default function Layout({ children, currentPageName }) {
         ]);
 
         if (!active) return;
+
         const next = [];
 
         (jobsRes.data || []).forEach((item) => {
@@ -206,6 +216,20 @@ export default function Layout({ children, currentPageName }) {
     return pageTitleMap[currentPageName] || 'מערכת ניהול CRM';
   }, [currentPageName]);
 
+  const shouldShowSearchPanel =
+    searchLoading || globalSearchResults.length > 0 || normalizeText(globalSearchQuery).length >= 2;
+
+  const toggleTheme = () => {
+    setPreference('themeMode', preferences.themeMode === 'dark' ? 'light' : 'dark');
+  };
+
+  const handleSearchResultClick = (item) => {
+    setGlobalSearchQuery('');
+    setGlobalSearchResults([]);
+    setMobileSearchOpen(false);
+    navigate(mapSearchResultToUrl(item));
+  };
+
   const NavContent = ({ mobile = false }) => (
     <nav className="flex flex-col gap-1 p-2">
       {navItems.map((item) => {
@@ -217,7 +241,9 @@ export default function Layout({ children, currentPageName }) {
             to={createPageUrl(item.page)}
             onClick={() => mobile && setMobileMenuOpen(false)}
             className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 ${
-              isActive ? 'bg-[#00214d] text-white shadow-lg' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+              isActive
+                ? 'bg-[#00214d] text-white shadow-lg'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
             }`}
           >
             <item.icon className="h-5 w-5" />
@@ -228,14 +254,43 @@ export default function Layout({ children, currentPageName }) {
     </nav>
   );
 
-  const toggleTheme = () => {
-    setPreference('themeMode', preferences.themeMode === 'dark' ? 'light' : 'dark');
-  };
+  const SearchResultsPanel = ({ mobile = false }) => {
+    if (!shouldShowSearchPanel) return null;
 
-  const handleSearchResultClick = (item) => {
-    setGlobalSearchQuery('');
-    setGlobalSearchResults([]);
-    navigate(mapSearchResultToUrl(item));
+    return (
+      <div
+        className={`z-50 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 ${
+          mobile ? 'mt-2' : 'absolute right-0 top-12 w-full'
+        }`}
+      >
+        {searchLoading ? (
+          <div className="p-3 text-xs text-slate-500 dark:text-slate-300">מחפש...</div>
+        ) : globalSearchResults.length === 0 ? (
+          <div className="p-3 text-xs text-slate-500 dark:text-slate-300">אין תוצאות תואמות</div>
+        ) : (
+          <div className="max-h-72 overflow-y-auto p-1">
+            {globalSearchResults.map((item) => {
+              const ResultIcon = mapSearchResultIcon(item.type);
+              return (
+                <button
+                  key={`${item.type}:${item.id}`}
+                  type="button"
+                  onClick={() => handleSearchResultClick(item)}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-right transition hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  <ResultIcon className="h-4 w-4 text-slate-500 dark:text-slate-300" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{item.title}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-300">{item.subtitle}</p>
+                  </div>
+                  <ChevronLeft className="h-4 w-4 text-slate-400" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -295,40 +350,57 @@ export default function Layout({ children, currentPageName }) {
         </div>
       </aside>
 
-      <div className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:hidden">
-        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-          <SheetTrigger asChild>
-            <Button data-testid="mobile-menu-trigger" variant="ghost" size="icon">
-              <Menu className="h-6 w-6" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="right" className="w-72 p-0" dir="rtl">
-            <div className="flex h-full flex-col bg-white dark:bg-slate-900">
-              <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-6 dark:border-slate-800">
-                <img src={logo} alt="לוגו" className="h-10 w-auto" />
-                <div>
-                  <h1 className="text-lg font-bold text-[#00214d] dark:text-cyan-300">עולם הציפויים</h1>
-                  <p className="text-xs text-slate-500 dark:text-slate-300">מערכת ניהול</p>
+      <div
+        className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="flex h-14 items-center gap-2 px-3">
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button data-testid="mobile-menu-trigger" variant="ghost" size="icon" className="rounded-xl">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-72 p-0" dir="rtl">
+              <div className="flex h-full flex-col bg-white dark:bg-slate-900">
+                <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-6 dark:border-slate-800">
+                  <img src={logo} alt="לוגו" className="h-10 w-auto" />
+                  <div>
+                    <h1 className="text-lg font-bold text-[#00214d] dark:text-cyan-300">עולם הציפויים</h1>
+                    <p className="text-xs text-slate-500 dark:text-slate-300">מערכת ניהול</p>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto py-4">
+                  <NavContent mobile />
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto py-4">
-                <NavContent mobile />
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
+            </SheetContent>
+          </Sheet>
 
-        <button type="button" className="min-w-0 flex-1 text-right" onClick={() => navigate(createPageUrl('Dashboard'))}>
-          <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{pageTitle}</p>
-          <p className="truncate text-xs text-slate-500 dark:text-slate-300">עולם הציפויים</p>
-        </button>
+          <button type="button" className="min-w-0 flex-1 text-right" onClick={() => navigate(createPageUrl('Dashboard'))}>
+            <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{pageTitle}</p>
+            <p className="truncate text-xs text-slate-500 dark:text-slate-300">עולם הציפויים</p>
+          </button>
 
-        {user && !isLoadingAuth ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant={mobileSearchOpen ? 'default' : 'outline'}
+              size="icon"
+              className={mobileSearchOpen ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
+              onClick={() => setMobileSearchOpen((prev) => !prev)}
+            >
+              <Search className="h-4 w-4" />
+            </Button>
             <Button type="button" variant="outline" size="icon" onClick={toggleTheme}>
               {preferences.themeMode === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
-            <button type="button" onClick={() => navigate(createPageUrl('Settings'))} className="rounded-full">
+            <button
+              type="button"
+              onClick={() => navigate(createPageUrl('Settings'))}
+              className="rounded-full p-0.5"
+              aria-label="הגדרות"
+            >
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="text-sm" style={{ backgroundColor: '#e8f0f7', color: '#00214d' }}>
                   {displayName?.charAt(0)}
@@ -336,10 +408,27 @@ export default function Layout({ children, currentPageName }) {
               </Avatar>
             </button>
           </div>
+        </div>
+
+        {mobileSearchOpen ? (
+          <div className="border-t border-slate-200 px-3 py-3 dark:border-slate-800">
+            <div className="relative">
+              <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={globalSearchQuery}
+                onChange={(event) => setGlobalSearchQuery(event.target.value)}
+                placeholder="חפש לקוח, עבודה או הצעה..."
+                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pr-10 pl-3 text-sm outline-none transition focus:border-cyan-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+            <SearchResultsPanel mobile />
+          </div>
         ) : null}
+
       </div>
 
-      <main className="pb-24 lg:pr-64 lg:pb-0">
+      <main className="pb-[calc(7.75rem+env(safe-area-inset-bottom))] lg:pr-64 lg:pb-0">
         <div className="sticky top-0 z-30 hidden border-b border-slate-200 bg-white/95 backdrop-blur lg:block dark:border-slate-800 dark:bg-slate-900/95">
           <div className="flex items-center justify-between gap-4 px-8 py-4">
             <div className="min-w-0">
@@ -356,36 +445,7 @@ export default function Layout({ children, currentPageName }) {
                 placeholder="חפש לקוח, עבודה או הצעה..."
                 className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pr-10 pl-3 text-sm outline-none transition focus:border-cyan-500 focus:bg-white dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               />
-              {(searchLoading || globalSearchResults.length > 0 || normalizeText(globalSearchQuery).length >= 2) && (
-                <div className="absolute right-0 top-12 z-50 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
-                  {searchLoading ? (
-                    <div className="p-3 text-xs text-slate-500 dark:text-slate-300">מחפש...</div>
-                  ) : globalSearchResults.length === 0 ? (
-                    <div className="p-3 text-xs text-slate-500 dark:text-slate-300">אין תוצאות תואמות</div>
-                  ) : (
-                    <div className="max-h-80 overflow-y-auto p-1">
-                      {globalSearchResults.map((item) => {
-                        const ResultIcon = mapSearchResultIcon(item.type);
-                        return (
-                          <button
-                            key={`${item.type}:${item.id}`}
-                            type="button"
-                            onClick={() => handleSearchResultClick(item)}
-                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-right transition hover:bg-slate-100 dark:hover:bg-slate-800"
-                          >
-                            <ResultIcon className="h-4 w-4 text-slate-500 dark:text-slate-300" />
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{item.title}</p>
-                              <p className="text-xs text-slate-500 dark:text-slate-300">{item.subtitle}</p>
-                            </div>
-                            <ChevronLeft className="h-4 w-4 text-slate-400" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
+              <SearchResultsPanel />
             </div>
 
             <div className="relative">
@@ -420,8 +480,11 @@ export default function Layout({ children, currentPageName }) {
 
       <FloatingActionButton />
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 px-2 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
-        <div className="grid grid-cols-5 gap-1">
+      <nav
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 px-2 pt-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
+        style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
+      >
+        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
           {mobileNavItems.map((item) => {
             const isActive = currentPageName === item.page;
             return (
@@ -429,9 +492,10 @@ export default function Layout({ children, currentPageName }) {
                 key={item.page}
                 type="button"
                 onClick={() => navigate(createPageUrl(item.page))}
-                className={`flex flex-col items-center justify-center rounded-lg px-2 py-2 text-[11px] transition ${
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex min-h-14 flex-col items-center justify-center rounded-xl px-2 py-2 text-[11px] font-medium transition ${
                   isActive
-                    ? 'bg-cyan-50 text-[#00214d] dark:bg-cyan-950/40 dark:text-cyan-200'
+                    ? 'bg-[#00214d] text-white shadow-md dark:bg-cyan-900/60 dark:text-cyan-100'
                     : 'text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                 }`}
               >

@@ -15,6 +15,7 @@ import {
 } from '@/lib/geo/coordsPolicy';
 import { buildTenMinuteTimeOptions, isTenMinuteSlot, toTenMinuteSlot } from '@/lib/time/timeSlots';
 import { calculateGross, calculateVAT } from '@/utils/vat';
+import { useIsMobile } from '@/lib/ui/useIsMobile';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +55,13 @@ const CLIENT_TYPE_LABELS = {
 
 const TIME_OPTIONS_10_MIN = buildTenMinuteTimeOptions();
 
+const FORM_STEPS = [
+  { id: 'client', title: 'לקוח' },
+  { id: 'details', title: 'פרטי הצעה' },
+  { id: 'location', title: 'מיקום' },
+  { id: 'services', title: 'שורות שירות' },
+];
+
 function toNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -66,17 +74,37 @@ function formatMoney(value) {
   });
 }
 
+function getFirstFailedStep(errors) {
+  if (errors.account_id) return 0;
+  if (errors.title || errors.scheduled_time) return 1;
+  if (errors.address_text) return 2;
+  if (errors.line_items || (Array.isArray(errors.lineItems) && errors.lineItems.some((line) => Object.keys(line || {}).length > 0))) {
+    return 3;
+  }
+  return null;
+}
+
+function stepHasError(stepIndex, errors) {
+  if (stepIndex === 0) return Boolean(errors.account_id);
+  if (stepIndex === 1) return Boolean(errors.title || errors.scheduled_time);
+  if (stepIndex === 2) return Boolean(errors.address_text);
+  if (stepIndex === 3) return Boolean(errors.line_items || (Array.isArray(errors.lineItems) && errors.lineItems.some((line) => Object.keys(line || {}).length > 0)));
+  return false;
+}
+
 export default function QuoteForm() {
   const navigate = useNavigate();
   const { id: routeQuoteId } = useParams();
   const queryClient = useQueryClient();
   const { user, isLoadingAuth } = useAuth();
+  const isMobile = useIsMobile();
 
   const urlParams = new URLSearchParams(window.location.search);
   const quoteId = routeQuoteId || urlParams.get('id');
   const preselectedAccountId = urlParams.get('account_id') || urlParams.get('client_id') || '';
   const isEditing = Boolean(quoteId);
 
+  const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState([]);
@@ -84,6 +112,7 @@ export default function QuoteForm() {
   const [accountPopoverOpen, setAccountPopoverOpen] = useState(false);
   const [createClientDialogOpen, setCreateClientDialogOpen] = useState(false);
   const [errors, setErrors] = useState({});
+  const [addressAssist, setAddressAssist] = useState('');
   const [quoteCoordinates, setQuoteCoordinates] = useState({ lat: null, lng: null });
   const [addressEditedManually, setAddressEditedManually] = useState(false);
 
@@ -128,8 +157,10 @@ export default function QuoteForm() {
         const nextAccountAddresses = {};
         (contactsRes.data || []).forEach((contact) => {
           if (!contact.account_id || !contact.address_text) return;
+          const normalizedContactAddress = normalizeAddressText(contact.address_text);
+          if (!normalizedContactAddress) return;
           if (!nextAccountAddresses[contact.account_id] || contact.is_primary) {
-            nextAccountAddresses[contact.account_id] = contact.address_text;
+            nextAccountAddresses[contact.account_id] = normalizedContactAddress;
           }
         });
         setAccountAddresses(nextAccountAddresses);
@@ -222,17 +253,26 @@ export default function QuoteForm() {
     };
   }, [user, quoteId, isEditing, preselectedAccountId, navigate]);
 
-  function handleAddressTextChange(addressText, { isManual }) {
+  function handleAddressTextChange(addressText, { isManual, autofixed } = {}) {
     setFormData((prev) => ({ ...prev, address_text: addressText }));
     if (isManual) {
       setAddressEditedManually(true);
       setQuoteCoordinates({ lat: null, lng: null });
+    }
+    if (autofixed) {
+      setAddressAssist(`הכתובת תוקנה אוטומטית: ${addressText}`);
+    } else if (isManual) {
+      setAddressAssist('');
+    }
+    if (errors.address_text) {
+      setErrors((prev) => ({ ...prev, address_text: null }));
     }
   }
 
   function handleAddressPlaceSelected({ addressText, lat, lng }) {
     setFormData((prev) => ({ ...prev, address_text: addressText || prev.address_text }));
     setAddressEditedManually(false);
+    setAddressAssist('');
     const parsedLat = parseCoord(lat);
     const parsedLng = parseCoord(lng);
     setQuoteCoordinates({
@@ -306,11 +346,11 @@ export default function QuoteForm() {
   const vatAmount = calculateVAT(subtotal);
   const totalWithVat = calculateGross(subtotal);
 
-  function validate() {
+  function buildValidationErrors() {
     const nextErrors = {};
 
     if (!formData.account_id) nextErrors.account_id = 'חובה לבחור לקוח';
-    if (!formData.title.trim()) nextErrors.title = 'כותרת הצעה היא שדה חובה';
+    if (!formData.title.trim()) nextErrors.title = 'כותרת ההצעה היא שדה חובה';
 
     const normalizedAddress = normalizeAddressText(formData.address_text);
     if (normalizedAddress && !isStrictIsraeliAddressFormat(normalizedAddress)) {
@@ -345,16 +385,31 @@ export default function QuoteForm() {
       lineErrors[index] = itemErrors;
     });
 
-    if (hasLineError) nextErrors.lineItems = lineErrors;
+    if (hasLineError) {
+      nextErrors.lineItems = lineErrors;
+      nextErrors.line_items = 'יש לתקן את שורות השירות לפני שמירה';
+    }
 
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    return nextErrors;
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  function validateCurrentStep(stepIndex) {
+    const nextErrors = buildValidationErrors();
+    setErrors(nextErrors);
+    return !stepHasError(stepIndex, nextErrors);
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
     if (!user) return;
-    if (!validate()) return;
+
+    const validationErrors = buildValidationErrors();
+    setErrors(validationErrors);
+    const firstFailedStep = getFirstFailedStep(validationErrors);
+    if (firstFailedStep != null) {
+      if (isMobile) setActiveStep(firstFailedStep);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -422,6 +477,7 @@ export default function QuoteForm() {
 
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['jobs'] });
       toast.success('הצעת המחיר נשמרה בהצלחה');
       navigate(createPageUrl(`QuoteDetails?id=${quoteSavedId}`));
     } catch (error) {
@@ -438,66 +494,113 @@ export default function QuoteForm() {
     }
   }
 
+  function handleNextStep() {
+    if (activeStep >= FORM_STEPS.length - 1) return;
+    if (!validateCurrentStep(activeStep)) return;
+    setActiveStep((prev) => Math.min(prev + 1, FORM_STEPS.length - 1));
+  }
+
+  function handlePreviousStep() {
+    setActiveStep((prev) => Math.max(prev - 1, 0));
+  }
+
+  const isLastStep = activeStep === FORM_STEPS.length - 1;
+
   if (isLoadingAuth) return <LoadingSpinner />;
   if (!user) return null;
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div dir="rtl" className="mx-auto max-w-3xl space-y-6 p-4 lg:p-8">
-      <div className="mb-8 flex items-center gap-4">
+    <div dir="rtl" className="mx-auto max-w-5xl space-y-6 p-4 pb-32 lg:p-8 lg:pb-8">
+      <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
           <ArrowRight className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">{isEditing ? 'עריכת טיוטת הצעה' : 'הצעת מחיר חדשה'}</h1>
-          <p className="mt-1 text-slate-500">ניהול הצעת מחיר במבנה דומה לעבודה חדשה</p>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{isEditing ? 'עריכת טיוטת הצעה' : 'הצעת מחיר חדשה'}</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">מבנה זהה לטופס עבודה עם התאמות להצעת מחיר</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">לקוח *</CardTitle>
-            <Button type="button" variant="outline" size="sm" onClick={() => setCreateClientDialogOpen(true)}>
-              + לקוח חדש
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <Popover open={accountPopoverOpen} onOpenChange={setAccountPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  data-testid="quote-account-trigger"
-                  variant="outline"
-                  role="combobox"
-                  className={`h-auto w-full justify-between py-3 ${errors.account_id ? 'border-red-500' : ''}`}
-                >
-                  {formData.account_name ? <span>{formData.account_name}</span> : <span className="text-slate-500">בחר לקוח...</span>}
-                  <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-full p-0" align="start">
-                <Command dir="rtl">
-                  <CommandInput placeholder="חפש לקוח..." />
-                  <CommandList>
-                    <CommandEmpty>לא נמצאו לקוחות</CommandEmpty>
-                    <CommandGroup>
-                      {accounts.map((account) => (
-                        <CommandItem key={account.id} onSelect={() => handleAccountSelect(account)} className="cursor-pointer">
-                          <div className="flex w-full items-center justify-between gap-2">
-                            <span className="font-medium">{account.account_name}</span>
-                            <span className="text-xs text-slate-500">{CLIENT_TYPE_LABELS[account.client_type] || 'פרטי'}</span>
-                          </div>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+      {isMobile ? (
+        <div className="sticky top-[calc(env(safe-area-inset-top)+3.5rem)] z-20 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+          <div className="grid grid-cols-4 gap-1">
+            {FORM_STEPS.map((step, index) => {
+              const isActive = index === activeStep;
+              const isDone = index < activeStep;
+              const hasError = stepHasError(index, errors);
 
-            {errors.account_id ? <p className="mt-1 text-sm text-red-600">{errors.account_id}</p> : null}
-          </CardContent>
-        </Card>
+              return (
+                <button
+                  key={step.id}
+                  type="button"
+                  onClick={() => {
+                    if (index <= activeStep) setActiveStep(index);
+                  }}
+                  className={`rounded-xl px-2 py-2 text-[11px] font-medium transition ${
+                    isActive
+                      ? 'bg-[#00214d] text-white'
+                      : isDone
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                        : hasError
+                          ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300'
+                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                >
+                  {index + 1}. {step.title}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <form id="quote-form" onSubmit={handleSubmit} className="space-y-6">
+        {!isMobile || activeStep === 0 ? (
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg">לקוח</CardTitle>
+              <Button type="button" variant="outline" size="sm" onClick={() => setCreateClientDialogOpen(true)}>
+                + לקוח חדש
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Popover open={accountPopoverOpen} onOpenChange={setAccountPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    data-testid="quote-account-trigger"
+                    variant="outline"
+                    role="combobox"
+                    className={`h-auto w-full justify-between py-3 ${errors.account_id ? 'border-red-500' : ''}`}
+                  >
+                    {formData.account_name ? <span>{formData.account_name}</span> : <span className="text-slate-500">בחר לקוח...</span>}
+                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command dir="rtl">
+                    <CommandInput placeholder="חפש לקוח..." />
+                    <CommandList>
+                      <CommandEmpty>לא נמצאו לקוחות</CommandEmpty>
+                      <CommandGroup>
+                        {accounts.map((account) => (
+                          <CommandItem key={account.id} onSelect={() => handleAccountSelect(account)} className="cursor-pointer">
+                            <div className="flex w-full items-center justify-between gap-2">
+                              <span className="font-medium">{account.account_name}</span>
+                              <span className="text-xs text-slate-500">{CLIENT_TYPE_LABELS[account.client_type] || 'פרטי'}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              {errors.account_id ? <p className="mt-1 text-sm text-red-600">{errors.account_id}</p> : null}
+            </CardContent>
+          </Card>
+        ) : null}
 
         <CreateNewClientDialog
           open={createClientDialogOpen}
@@ -505,234 +608,297 @@ export default function QuoteForm() {
           onClientCreated={handleClientCreated}
         />
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg">פרטי הצעה</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>כותרת *</Label>
-              <Input
-                data-testid="quote-title"
-                value={formData.title}
-                onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-                className={errors.title ? 'border-red-500' : ''}
-              />
-              {errors.title ? <p className="text-xs text-red-600">{errors.title}</p> : null}
-            </div>
-
-            <div className="space-y-2">
-              <Label>תיאור</Label>
-              <Textarea
-                data-testid="quote-description"
-                value={formData.description}
-                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                rows={3}
-              />
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
+        {!isMobile || activeStep === 1 ? (
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">פרטי הצעה ותזמון</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>תאריך</Label>
+                <Label htmlFor="quote-title">כותרת *</Label>
                 <Input
-                  type="date"
-                  value={formData.scheduled_date}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, scheduled_date: e.target.value }))}
+                  id="quote-title"
+                  data-testid="quote-title"
+                  value={formData.title}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, title: event.target.value }))}
+                  className={errors.title ? 'border-red-500' : ''}
+                />
+                {errors.title ? <p className="text-xs text-red-600">{errors.title}</p> : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="quote-description">תיאור</Label>
+                <Textarea
+                  id="quote-description"
+                  data-testid="quote-description"
+                  value={formData.description}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
+                  rows={3}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>שעה</Label>
-                <select
-                  data-testid="quote-scheduled-time"
-                  value={formData.scheduled_time}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, scheduled_time: e.target.value }))}
-                  className={`w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ${errors.scheduled_time ? 'border-red-500' : ''}`}
-                >
-                  <option value="">בחר שעה...</option>
-                  {TIME_OPTIONS_10_MIN.map((time) => (
-                    <option key={time} value={time}>{time}</option>
-                  ))}
-                </select>
-                {errors.scheduled_time ? <p className="text-xs text-red-600">{errors.scheduled_time}</p> : null}
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label>הערות להצעה</Label>
-              <Textarea
-                data-testid="quote-notes"
-                value={formData.notes}
-                onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-                placeholder="הערות כלליות להצעת המחיר..."
-                rows={3}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg">מיקום</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>כתובת</Label>
-              <GooglePlacesInput
-                data-testid="quote-address"
-                value={formData.address_text}
-                onChangeText={(text) => handleAddressTextChange(text, { isManual: true })}
-                onPlaceSelected={handleAddressPlaceSelected}
-                placeholder="הרצל 10, אשדוד"
-                className={errors.address_text ? 'border-red-500' : ''}
-              />
-              <p className="text-xs text-slate-500">פורמט חובה: רחוב ומספר, עיר. לדוגמה: הרצל 10, אשדוד</p>
-              {errors.address_text ? <p className="text-xs text-red-600">{errors.address_text}</p> : null}
-            </div>
-
-            <div className="space-y-2">
-              <Label>הערות הגעה</Label>
-              <Textarea
-                data-testid="quote-arrival-notes"
-                value={formData.arrival_notes}
-                onChange={(e) => setFormData((prev) => ({ ...prev, arrival_notes: e.target.value }))}
-                rows={2}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">שורות שירות</CardTitle>
-            <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-              <Plus className="ml-1 h-4 w-4" />
-              הוסף שורה
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {lineItems.map((item, index) => {
-              const lineErrors = errors.lineItems?.[index] || {};
-              const quantity = Math.max(1, toNumber(item.quantity));
-              const unitPrice = Math.max(0, toNumber(item.unit_price));
-              const lineTotal = quantity * unitPrice;
-              const unitWithVat = calculateGross(unitPrice);
-              const lineWithVat = calculateGross(lineTotal);
-
-              return (
-                <div key={item.id} className="space-y-3 rounded-xl bg-slate-50 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-500">שורה {index + 1}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-500 hover:text-red-700"
-                      onClick={() => removeLineItem(item.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>תיאור *</Label>
-                    <Input
-                      data-testid={`quote-line-description-${index}`}
-                      value={item.description}
-                      onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
-                      placeholder="תיאור השירות"
-                      className={lineErrors.description ? 'border-red-500' : ''}
-                    />
-                    {lineErrors.description ? <p className="text-xs text-red-600">{lineErrors.description}</p> : null}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>כמות</Label>
-                      <Input
-                        data-testid={`quote-line-quantity-${index}`}
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={item.quantity}
-                        onChange={(e) => updateLineItem(item.id, 'quantity', e.target.value)}
-                        className={lineErrors.quantity ? 'border-red-500' : ''}
-                        dir="ltr"
-                      />
-                      {lineErrors.quantity ? <p className="text-xs text-red-600">{lineErrors.quantity}</p> : null}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>מחיר יחידה (לפני מע"מ)</Label>
-                      <Input
-                        data-testid={`quote-line-unit-price-${index}`}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.unit_price}
-                        onChange={(e) => updateLineItem(item.id, 'unit_price', e.target.value)}
-                        className={lineErrors.unit_price ? 'border-red-500' : ''}
-                        dir="ltr"
-                      />
-                      {lineErrors.unit_price ? <p className="text-xs text-red-600">{lineErrors.unit_price}</p> : null}
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2 rounded-lg bg-white p-3 text-sm text-slate-600 sm:grid-cols-2" dir="ltr">
-                    <div className="flex items-center justify-between">
-                      <span>יחידה כולל מע"מ:</span>
-                      <span className="font-medium text-slate-800">₪{formatMoney(unitWithVat)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>סה"כ שורה כולל מע"מ:</span>
-                      <span className="font-medium text-slate-800">₪{formatMoney(lineWithVat)}</span>
-                    </div>
-                  </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="quote-scheduled-date">תאריך</Label>
+                  <Input
+                    id="quote-scheduled-date"
+                    type="date"
+                    value={formData.scheduled_date}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, scheduled_date: event.target.value }))}
+                  />
                 </div>
-              );
-            })}
+                <div className="space-y-2">
+                  <Label htmlFor="quote-scheduled-time">שעה (24H, בקפיצות 10 דקות)</Label>
+                  <select
+                    id="quote-scheduled-time"
+                    data-testid="quote-scheduled-time"
+                    value={formData.scheduled_time}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, scheduled_time: event.target.value }))}
+                    className={`h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900 ${errors.scheduled_time ? 'border-red-500' : ''}`}
+                  >
+                    <option value="">בחר שעה...</option>
+                    {TIME_OPTIONS_10_MIN.map((time) => (
+                      <option key={time} value={time}>{time}</option>
+                    ))}
+                  </select>
+                  {errors.scheduled_time ? <p className="text-xs text-red-600">{errors.scheduled_time}</p> : null}
+                </div>
+              </div>
 
-            <div className="space-y-3 rounded-xl bg-slate-800 p-4 text-white">
-              <div className="flex items-center justify-between">
-                <span>סה"כ לפני מע"מ</span>
-                <span data-testid="quote-total" dir="ltr">₪{formatMoney(subtotal)}</span>
+              <div className="space-y-2">
+                <Label htmlFor="quote-notes">הערות להצעה</Label>
+                <Textarea
+                  id="quote-notes"
+                  data-testid="quote-notes"
+                  value={formData.notes}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, notes: event.target.value }))}
+                  placeholder="הערות כלליות להצעת המחיר..."
+                  rows={3}
+                />
               </div>
-              <div className="flex items-center justify-between">
-                <span>מע"מ (18%)</span>
-                <span dir="ltr">₪{formatMoney(vatAmount)}</span>
-              </div>
-              <div className="flex items-center justify-between border-t border-white/20 pt-3 text-lg font-bold">
-                <span>סה"כ כולל מע"מ</span>
-                <span dir="ltr">₪{formatMoney(totalWithVat)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ) : null}
 
-        <div className="flex gap-3 pt-4">
-          <Button
-            data-testid="quote-save-button"
-            type="submit"
-            disabled={saving}
-            style={{ backgroundColor: '#00214d' }}
-            className="flex-1 hover:opacity-90"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                שומר...
-              </>
-            ) : (
-              <>
-                <Save className="ml-2 h-4 w-4" />
-                {isEditing ? 'שמור שינויים' : 'שמור טיוטה'}
-              </>
-            )}
-          </Button>
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
-            ביטול
-          </Button>
-        </div>
+        {!isMobile || activeStep === 2 ? (
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">מיקום והערות הגעה</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="quote-address">כתובת</Label>
+                <GooglePlacesInput
+                  id="quote-address"
+                  data-testid="quote-address"
+                  value={formData.address_text}
+                  onChangeText={handleAddressTextChange}
+                  onPlaceSelected={handleAddressPlaceSelected}
+                  onAddressAutofix={({ normalized }) => setAddressAssist(`הכתובת תוקנה אוטומטית: ${normalized}`)}
+                  placeholder="הרצל 10, אשדוד"
+                  className={errors.address_text ? 'border-red-500' : ''}
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-300">פורמט חובה: רחוב ומספר, עיר. לדוגמה: הרצל 10, אשדוד</p>
+                <p className="text-xs text-slate-500 dark:text-slate-300">פורמט מומלץ: רחוב ומספר, עיר. אפשר להקליד גם בלי פסיק והמערכת תתקן אוטומטית.</p>
+                {addressAssist ? <p className="text-xs text-emerald-700 dark:text-emerald-300">{addressAssist}</p> : null}
+                {errors.address_text ? <p className="text-xs text-red-600">{errors.address_text}</p> : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="quote-arrival-notes">הערות הגעה</Label>
+                <Textarea
+                  id="quote-arrival-notes"
+                  data-testid="quote-arrival-notes"
+                  value={formData.arrival_notes}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, arrival_notes: event.target.value }))}
+                  rows={2}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {!isMobile || activeStep === 3 ? (
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg">שורות שירות</CardTitle>
+              <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+                <Plus className="ml-1 h-4 w-4" />
+                הוסף שורה
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {lineItems.map((item, index) => {
+                const lineErrors = errors.lineItems?.[index] || {};
+                const quantity = Math.max(1, toNumber(item.quantity));
+                const unitPrice = Math.max(0, toNumber(item.unit_price));
+                const lineTotal = quantity * unitPrice;
+                const unitWithVat = calculateGross(unitPrice);
+                const lineWithVat = calculateGross(lineTotal);
+
+                return (
+                  <div key={item.id} className="space-y-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-slate-500 dark:text-slate-300">שורה {index + 1}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-red-500 hover:text-red-700"
+                        onClick={() => removeLineItem(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>תיאור *</Label>
+                      <Input
+                        data-testid={`quote-line-description-${index}`}
+                        value={item.description}
+                        onChange={(event) => updateLineItem(item.id, 'description', event.target.value)}
+                        placeholder="תיאור השירות"
+                        className={lineErrors.description ? 'border-red-500' : ''}
+                      />
+                      {lineErrors.description ? <p className="text-xs text-red-600">{lineErrors.description}</p> : null}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>כמות</Label>
+                        <Input
+                          data-testid={`quote-line-quantity-${index}`}
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={item.quantity}
+                          onChange={(event) => updateLineItem(item.id, 'quantity', event.target.value)}
+                          className={lineErrors.quantity ? 'border-red-500' : ''}
+                          dir="ltr"
+                        />
+                        {lineErrors.quantity ? <p className="text-xs text-red-600">{lineErrors.quantity}</p> : null}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>מחיר יחידה (לפני מע"מ)</Label>
+                        <Input
+                          data-testid={`quote-line-unit-price-${index}`}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.unit_price}
+                          onChange={(event) => updateLineItem(item.id, 'unit_price', event.target.value)}
+                          className={lineErrors.unit_price ? 'border-red-500' : ''}
+                          dir="ltr"
+                        />
+                        {lineErrors.unit_price ? <p className="text-xs text-red-600">{lineErrors.unit_price}</p> : null}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 rounded-lg bg-white p-3 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300 sm:grid-cols-2" dir="ltr">
+                      <div className="flex items-center justify-between">
+                        <span>יחידה כולל מע"מ:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-100">₪{formatMoney(unitWithVat)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>סה"כ שורה כולל מע"מ:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-100">₪{formatMoney(lineWithVat)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {errors.line_items ? <p className="text-sm text-red-600">{errors.line_items}</p> : null}
+
+              <div className="space-y-3 rounded-xl bg-[#00173f] p-4 text-white">
+                <div className="flex items-center justify-between">
+                  <span>סה"כ לפני מע"מ</span>
+                  <span data-testid="quote-total" dir="ltr">₪{formatMoney(subtotal)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>מע"מ (18%)</span>
+                  <span dir="ltr">₪{formatMoney(vatAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-white/20 pt-3 text-lg font-bold">
+                  <span>סה"כ כולל מע"מ</span>
+                  <span dir="ltr">₪{formatMoney(totalWithVat)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {!isMobile ? (
+          <div className="flex gap-3 pt-4">
+            <Button
+              data-testid="quote-save-button"
+              type="submit"
+              disabled={saving}
+              style={{ backgroundColor: '#00214d' }}
+              className="flex-1 hover:opacity-90"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  שומר...
+                </>
+              ) : (
+                <>
+                  <Save className="ml-2 h-4 w-4" />
+                  {isEditing ? 'שמור שינויים' : 'שמור טיוטה'}
+                </>
+              )}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+              ביטול
+            </Button>
+          </div>
+        ) : null}
       </form>
+
+      {isMobile ? (
+        <div
+          className="fixed inset-x-0 z-40 border-t border-slate-200 bg-white/95 p-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95"
+          style={{
+            bottom: 'calc(4.7rem + env(safe-area-inset-bottom))',
+            paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))',
+          }}
+        >
+          <div className="mx-auto flex max-w-md items-center gap-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={handlePreviousStep} disabled={activeStep === 0 || saving}>
+              הקודם
+            </Button>
+
+            {isLastStep ? (
+              <Button
+                data-testid="quote-save-button"
+                type="submit"
+                form="quote-form"
+                disabled={saving}
+                className="flex-1 bg-[#00214d] text-white hover:bg-[#00214d]/90"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                    שומר...
+                  </>
+                ) : (
+                  <>
+                    <Save className="ml-2 h-4 w-4" />
+                    שמור
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button type="button" className="flex-1 bg-[#00214d] text-white hover:bg-[#00214d]/90" onClick={handleNextStep} disabled={saving}>
+                הבא
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
+

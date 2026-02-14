@@ -6,6 +6,9 @@ export const UI_PREFERENCE_KEYS = Object.freeze({
   clientsView: 'crm_ui_clients_view',
   mapSidebarMode: 'crm_ui_map_mode',
   densityMode: 'crm_ui_density',
+  mobileCalendarView: 'crm_ui_mobile_calendar_view',
+  mobileWeekStyle: 'crm_ui_mobile_week_style',
+  mobileMapSheet: 'crm_ui_mobile_map_sheet',
 });
 
 export const DEFAULT_UI_PREFERENCES = Object.freeze({
@@ -14,6 +17,9 @@ export const DEFAULT_UI_PREFERENCES = Object.freeze({
   clientsView: 'compact_cards',
   mapSidebarMode: 'compact',
   densityMode: 'comfortable',
+  mobileCalendarView: 'week',
+  mobileWeekStyle: 'day_carousel',
+  mobileMapSheet: 'half',
 });
 
 const allowedValues = Object.freeze({
@@ -22,6 +28,9 @@ const allowedValues = Object.freeze({
   clientsView: new Set(['compact_cards', 'expanded_cards']),
   mapSidebarMode: new Set(['compact', 'expanded']),
   densityMode: new Set(['comfortable', 'compact']),
+  mobileCalendarView: new Set(['week', 'month']),
+  mobileWeekStyle: new Set(['day_carousel', 'compact_columns', 'hour_timeline']),
+  mobileMapSheet: new Set(['collapsed', 'half', 'full']),
 });
 
 function safeRead(key) {

@@ -1,12 +1,17 @@
 import { supabase } from '@/api/supabaseClient';
-import { isUsableJobCoords, normalizeAddressText, parseCoord } from '@/lib/geo/coordsPolicy';
+import {
+  buildAddressQueryVariants,
+  isUsableJobCoords,
+  normalizeAddressText,
+  parseCoord,
+} from '@/lib/geo/coordsPolicy';
 import { getStatusForScheduling } from '@/lib/jobs/schedulingStatus';
 
 async function geocodeViaNominatimFallback(addressText) {
   const query = normalizeAddressText(addressText);
   if (!query) return null;
 
-  const candidates = Array.from(new Set([query, `${query}, Israel`, `${query}, \u05D9\u05E9\u05E8\u05D0\u05DC`]));
+  const candidates = buildAddressQueryVariants(query);
   for (const item of candidates) {
     const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=il&q=${encodeURIComponent(item)}`);
     if (!resp.ok) continue;

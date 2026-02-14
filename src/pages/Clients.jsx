@@ -103,7 +103,7 @@ export default function Clients() {
 
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
-      const haystack = `${accountName} ${contact?.full_name || ''} ${contact?.phone || ''} ${contact?.email || ''}`.toLowerCase();
+      const haystack = `${accountName} ${contact?.phone || ''} ${contact?.email || ''}`.toLowerCase();
       return haystack.includes(q);
     });
   }, [profiles, searchQuery, statusFilter, typeFilter]);
@@ -284,8 +284,6 @@ export default function Clients() {
                         <Badge variant="outline">{STATUS_BADGE[status] || status}</Badge>
                         <ClientTypeBadge type={clientType} />
                       </div>
-
-                      {contact?.full_name ? <p className="mt-1 text-sm text-slate-500">{contact.full_name}</p> : null}
 
                       <div className={`mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500 ${isExpandedCards ? '' : 'line-clamp-1'}`}>
                         {contact?.phone ? (

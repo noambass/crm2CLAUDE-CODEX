@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -31,9 +31,9 @@ const CLIENT_TYPE_OPTIONS = [
 
 export default function CreateNewClientDialog({ open, onOpenChange, onClientCreated }) {
   const [saving, setSaving] = useState(false);
+  const [addressAssist, setAddressAssist] = useState('');
   const [formData, setFormData] = useState({
     account_name: '',
-    full_name: '',
     phone: '',
     email: '',
     address_text: '',
@@ -45,12 +45,27 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
     setFormData((prev) => ({ ...prev, [field]: value }));
   }
 
+  function handleAddressChange(text, meta = {}) {
+    handleChange('address_text', text);
+    if (meta?.autofixed) {
+      setAddressAssist(`הכתובת תוקנה אוטומטית: ${text}`);
+    } else if (meta?.isManual) {
+      setAddressAssist('');
+    }
+  }
+
+  useEffect(() => {
+    if (!open) {
+      setAddressAssist('');
+    }
+  }, [open]);
+
   async function handleSubmit() {
-    const accountName = formData.account_name.trim() || formData.full_name.trim();
-    const fullName = formData.full_name.trim() || accountName;
+    const accountName = formData.account_name.trim();
+    const fullName = accountName;
     const normalizedAddress = normalizeAddressText(formData.address_text);
 
-    if (!accountName || !fullName) {
+    if (!accountName) {
       toast.error('חובה להזין שם לקוח');
       return;
     }
@@ -98,13 +113,13 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
 
       setFormData({
         account_name: '',
-        full_name: '',
         phone: '',
         email: '',
         address_text: '',
         notes: '',
         client_type: 'private',
       });
+      setAddressAssist('');
 
       onOpenChange(false);
       toast.success('הלקוח נוצר בהצלחה');
@@ -138,16 +153,6 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="full_name">איש קשר *</Label>
-            <Input
-              id="full_name"
-              value={formData.full_name}
-              onChange={(e) => handleChange('full_name', e.target.value)}
-              placeholder="שם איש קשר"
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="phone">טלפון</Label>
             <Input
               id="phone"
@@ -175,11 +180,13 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
             <GooglePlacesInput
               id="address_text"
               value={formData.address_text}
-              onChangeText={(text) => handleChange('address_text', text)}
-              onPlaceSelected={({ addressText }) => handleChange('address_text', addressText)}
+              onChangeText={handleAddressChange}
+              onPlaceSelected={({ addressText }) => handleAddressChange(addressText, { isManual: false })}
+              onAddressAutofix={({ normalized }) => setAddressAssist(`הכתובת תוקנה אוטומטית: ${normalized}`)}
               placeholder="הרצל 10, אשדוד"
             />
-            <p className="text-xs text-slate-500">פורמט חובה: רחוב ומספר, עיר</p>
+            <p className="text-xs text-slate-500">פורמט מומלץ: רחוב ומספר, עיר. אפשר להקליד גם בלי פסיק.</p>
+            {addressAssist ? <p className="text-xs text-emerald-700">{addressAssist}</p> : null}
           </div>
 
           <div className="space-y-2">
@@ -212,7 +219,7 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
         <DialogFooter className="flex justify-end gap-2">
           <Button
             onClick={handleSubmit}
-            disabled={saving || !(formData.account_name.trim() || formData.full_name.trim())}
+            disabled={saving || !formData.account_name.trim()}
             style={{ backgroundColor: '#00214d' }}
             className="hover:opacity-90"
           >

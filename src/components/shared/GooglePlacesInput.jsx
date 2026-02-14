@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
+import { autofixAddressText } from '@/lib/geo/coordsPolicy';
 
 // Lightweight Google Places Autocomplete input.
 // Requires VITE_GOOGLE_MAPS_API_KEY in the frontend.
@@ -31,20 +32,47 @@ function loadGoogleMapsPlaces(apiKey) {
 /**
  * Props:
  * - value: string
- * - onChangeText: (text: string) => void
+ * - onChangeText: (text: string, meta?: object) => void
  * - onPlaceSelected: ({ addressText, placeId, lat, lng }) => void
+ * - onAddressAutofix?: ({ original, normalized, fixes }) => void
+ * - normalizeOnBlur?: boolean
  * - placeholder?: string
  */
 export default function GooglePlacesInput({
   value,
   onChangeText,
   onPlaceSelected,
+  onAddressAutofix,
+  normalizeOnBlur = true,
   placeholder = 'הקלד כתובת...',
   ...inputProps
 }) {
   const inputRef = useRef(null);
   const [enabled, setEnabled] = useState(false);
   const apiKey = useMemo(() => import.meta.env.VITE_GOOGLE_MAPS_API_KEY, []);
+
+  function emitChange(nextValue, meta = {}) {
+    onChangeText?.(nextValue, meta);
+  }
+
+  function applyAutofix(rawText, meta = {}) {
+    const fixed = autofixAddressText(rawText);
+    if (fixed.changed) {
+      onAddressAutofix?.({
+        original: String(rawText || ''),
+        normalized: fixed.value,
+        fixes: fixed.fixes,
+      });
+    }
+
+    emitChange(fixed.value, {
+      ...meta,
+      autofixed: fixed.changed,
+      fixes: fixed.fixes,
+    });
+
+    return fixed.value;
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -62,11 +90,16 @@ export default function GooglePlacesInput({
         ac.addListener('place_changed', () => {
           const place = ac.getPlace();
           const addressText = place?.formatted_address || inputRef.current?.value || '';
+          const normalizedAddress = autofixAddressText(addressText).value;
           const placeId = place?.place_id || null;
           const lat = place?.geometry?.location?.lat?.() ?? null;
           const lng = place?.geometry?.location?.lng?.() ?? null;
-          onChangeText?.(addressText);
-          onPlaceSelected?.({ addressText, placeId, lat, lng });
+          emitChange(normalizedAddress, {
+            isManual: false,
+            fromAutocomplete: true,
+            autofixed: normalizedAddress !== addressText,
+          });
+          onPlaceSelected?.({ addressText: normalizedAddress, placeId, lat, lng });
         });
         setEnabled(true);
       })
@@ -78,13 +111,19 @@ export default function GooglePlacesInput({
     return () => {
       mounted = false;
     };
-  }, [apiKey, onChangeText, onPlaceSelected]);
+  }, [apiKey, onPlaceSelected]);
 
   return (
     <Input
       ref={inputRef}
       value={value}
-      onChange={(e) => onChangeText?.(e.target.value)}
+      onChange={(e) => emitChange(e.target.value, { isManual: true, fromAutocomplete: false })}
+      onBlur={(event) => {
+        if (normalizeOnBlur) {
+          applyAutofix(event.target.value, { isManual: true, onBlur: true });
+        }
+        inputProps.onBlur?.(event);
+      }}
       placeholder={placeholder}
       autoComplete={enabled ? 'off' : 'street-address'}
       {...inputProps}

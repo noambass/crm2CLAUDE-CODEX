@@ -88,6 +88,13 @@ export default function Quotes() {
   if (isLoadingAuth || loading) return <LoadingSpinner />;
   if (!user) return null;
 
+  function formatCurrency(value) {
+    return Number(value || 0).toLocaleString('he-IL', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
   return (
     <div dir="rtl" className="space-y-6 p-4 lg:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -161,63 +168,85 @@ export default function Quotes() {
           />
         )
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {filteredQuotes.map((quote) => {
             const statusCfg = QUOTE_STATUS_CONFIG[quote.status] || { label: quote.status, color: '#64748b' };
             const accountName = getQuoteAccountName(quote);
             const isReadyToConvert = quote.status === 'approved' && !quote.converted_job_id;
+            const quoteItems = Array.isArray(quote.quote_items) ? quote.quote_items : [];
+            const serviceItems = quoteItems.filter((item) => String(item?.description || '').trim());
+            const quoteTitle = String(quote.title || '').trim() || serviceItems[0]?.description || 'הצעת מחיר ללא כותרת';
+            const servicesPreview = serviceItems
+              .slice(0, 2)
+              .map((item) => {
+                const description = String(item.description || '').trim();
+                const quantity = Number(item.quantity || 0);
+                return quantity > 1 ? `${description} ×${quantity}` : description;
+              })
+              .join(' • ');
+            const extraServicesCount = Math.max(0, serviceItems.length - 2);
 
             return (
               <Card
                 key={quote.id}
-                className="cursor-pointer border-0 shadow-sm transition-all hover:shadow-md"
+                className="cursor-pointer border border-slate-200/80 bg-white shadow-sm transition-all hover:border-[#00214d]/20 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/80"
                 onClick={() => navigate(createPageUrl(`QuoteDetails?id=${quote.id}`))}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
+                <CardContent className="p-3.5">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <h4 className="font-semibold text-slate-800">{accountName}</h4>
-                      {quote.notes ? (
-                        <p className="mt-1 truncate text-sm text-slate-500">{quote.notes}</p>
-                      ) : null}
-                      <div className="mt-2 text-sm text-slate-400">
-                        {format(new Date(quote.created_at), 'dd/MM/yyyy', { locale: he })}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{quoteTitle}</h4>
+                        <Badge
+                          variant="outline"
+                          style={{
+                            backgroundColor: `${statusCfg.color}20`,
+                            color: statusCfg.color,
+                            borderColor: statusCfg.color,
+                          }}
+                          className="h-6 font-medium"
+                        >
+                          {statusCfg.label}
+                        </Badge>
                       </div>
+
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
+                        {accountName} • #{String(quote.id || '').slice(0, 8)} • {format(new Date(quote.created_at), 'dd/MM/yyyy', { locale: he })}
+                      </p>
+
+                      <p className="mt-1 line-clamp-1 text-xs text-slate-700 dark:text-slate-200">
+                        <span className="font-medium">שירותים:</span>{' '}
+                        {servicesPreview || 'לא הוגדרו שירותים'}
+                        {extraServicesCount > 0 ? ` • +${extraServicesCount} נוספים` : ''}
+                      </p>
+
+                      {quote.notes ? (
+                        <p className="mt-1 line-clamp-1 text-xs text-slate-500 dark:text-slate-300">{quote.notes}</p>
+                      ) : null}
                     </div>
 
-                    <div className="mr-4 flex flex-col items-end gap-2">
-                      <Badge
-                        variant="outline"
-                        style={{
-                          backgroundColor: `${statusCfg.color}20`,
-                          color: statusCfg.color,
-                          borderColor: statusCfg.color,
-                        }}
-                        className="font-medium"
-                      >
-                        {statusCfg.label}
-                      </Badge>
+                    <div className="shrink-0 text-left">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-300">כולל מע"מ</p>
+                      <p className="text-lg font-bold text-slate-900 dark:text-slate-100" dir="ltr">
+                        ₪{formatCurrency(Number(quote.total || 0) * 1.18)}
+                      </p>
+                    </div>
+                  </div>
 
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="text-xs text-slate-500">כולל מע"מ</span>
-                        <span className="text-lg font-bold text-slate-800" dir="ltr">
-                          ₪{(Number(quote.total || 0) * 1.18).toFixed(2)}
-                        </span>
-                      </div>
-
+                  {(isReadyToConvert || quote.converted_job_id) ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       {isReadyToConvert ? (
                         <Badge className="border-emerald-300 bg-emerald-100 text-emerald-700" variant="outline">
                           מוכנה להמרה
                         </Badge>
                       ) : null}
-
                       {quote.converted_job_id ? (
                         <Badge className="border-blue-300 bg-blue-100 text-blue-700" variant="outline">
                           הומרה לעבודה
                         </Badge>
                       ) : null}
                     </div>
-                  </div>
+                  ) : null}
                 </CardContent>
               </Card>
             );

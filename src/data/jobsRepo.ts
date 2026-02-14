@@ -1,4 +1,5 @@
 import { supabase } from '@/api/supabaseClient';
+import { normalizeAddressText } from '@/lib/geo/coordsPolicy';
 
 export async function listJobs() {
   const { data, error } = await supabase
@@ -27,7 +28,7 @@ export async function createManualJob(input) {
     description: input.description || null,
     status: input.status || 'waiting_schedule',
     priority: input.priority || 'normal',
-    address_text: input.addressText || null,
+    address_text: normalizeAddressText(input.addressText) || null,
     arrival_notes: input.arrivalNotes || null,
     lat: input.lat ?? null,
     lng: input.lng ?? null,

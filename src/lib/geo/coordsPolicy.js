@@ -41,9 +41,114 @@ export function isUsableJobCoords(lat, lng) {
 }
 
 export function normalizeAddressText(value) {
+  const { value: normalized } = autofixAddressText(value);
+  return normalized;
+}
+
+function normalizeBasicAddressSpacing(value) {
   return String(value || '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/[;|]+/g, ', ')
+    .replace(/\s*,\s*/g, ', ')
+    .replace(/,+/g, ',')
+    .replace(/\s+/g, ' ')
     .trim()
-    .replace(/\s+/g, ' ');
+    .replace(/^,\s*|\s*,$/g, '');
+}
+
+function stripTrailingAddressSuffix(value) {
+  return String(value || '')
+    .replace(/\s*[,.-]?\s*(apartment|apt|floor|entrance|suite|unit|דירה|דיר|קומה|כניסה)\s*[\p{L}\p{N}/-]+$/iu, '')
+    .trim();
+}
+
+function splitAlphaNumericTokens(value) {
+  return String(value || '')
+    .replace(/([^\W\d_])(\d)/gu, '$1 $2')
+    .replace(/(\d)([^\W\d_])/gu, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function inferCommaBeforeCity(value) {
+  const text = String(value || '');
+  if (!text || text.includes(',')) return text;
+
+  const tokens = text.split(' ').map((part) => part.trim()).filter(Boolean);
+  if (tokens.length < 3) return text;
+
+  const numberIndex = tokens.findIndex((token) => /\d/.test(token));
+  if (numberIndex < 0 || numberIndex >= tokens.length - 1) return text;
+
+  const streetPart = tokens.slice(0, numberIndex + 1).join(' ').trim();
+  const cityPart = tokens.slice(numberIndex + 1).join(' ').trim();
+  if (!streetPart || !cityPart) return text;
+
+  return `${streetPart}, ${cityPart}`;
+}
+
+export function autofixAddressText(value) {
+  const original = String(value || '');
+  if (!original.trim()) {
+    return {
+      value: '',
+      changed: false,
+      fixes: [],
+    };
+  }
+
+  const fixes = [];
+  let next = original;
+
+  const basic = normalizeBasicAddressSpacing(next);
+  if (basic !== next) {
+    fixes.push('spacing');
+    next = basic;
+  }
+
+  const splitTokens = splitAlphaNumericTokens(next);
+  if (splitTokens !== next) {
+    fixes.push('split_alpha_numeric');
+    next = splitTokens;
+  }
+
+  const noSuffix = stripTrailingAddressSuffix(next);
+  if (noSuffix !== next) {
+    fixes.push('remove_trailing_suffix');
+    next = noSuffix;
+  }
+
+  const inferredComma = inferCommaBeforeCity(next);
+  if (inferredComma !== next) {
+    fixes.push('add_city_comma');
+    next = inferredComma;
+  }
+
+  const finalValue = normalizeBasicAddressSpacing(next);
+  if (finalValue !== next) {
+    fixes.push('final_spacing');
+  }
+
+  return {
+    value: finalValue,
+    changed: finalValue !== original,
+    fixes,
+  };
+}
+
+export function buildAddressQueryVariants(value) {
+  const normalized = normalizeAddressText(value);
+  if (!normalized) return [];
+
+  const stripped = stripTrailingAddressSuffix(normalized);
+  const base = stripped || normalized;
+  return Array.from(
+    new Set([
+      base,
+      `${base}, ישראל`,
+      `${base}, Israel`,
+    ].map((item) => normalizeBasicAddressSpacing(item)).filter(Boolean)),
+  );
 }
 
 export function isStrictIsraeliAddressFormat(value) {

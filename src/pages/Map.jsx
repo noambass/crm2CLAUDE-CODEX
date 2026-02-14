@@ -24,6 +24,9 @@ import {
   ArrowUpRight,
   LayoutGrid,
   Rows3,
+  ChevronDown,
+  ChevronUp,
+  Minus,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +44,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
 import { useUiPreferences } from '@/lib/ui/useUiPreferences';
+import { useIsMobile } from '@/lib/ui/useIsMobile';
 
 const DEFAULT_CENTER = [32.0853, 34.7818];
 
@@ -73,6 +77,11 @@ const GEO_BACKFILL_CONCURRENCY = 2;
 const GEO_RETRY_MS = 24 * 60 * 60 * 1000;
 const GEO_RETRY_PREFIX = 'map-geocode-retry-until:';
 const TIME_OPTIONS_10_MIN = buildTenMinuteTimeOptions();
+const MOBILE_SHEET_HEIGHT = Object.freeze({
+  collapsed: '136px',
+  half: '52vh',
+  full: '84vh',
+});
 
 function readRetryUntil(jobId) {
   try {
@@ -159,6 +168,7 @@ export default function JobsMapPage() {
   const navigate = useNavigate();
   const { user, isLoadingAuth } = useAuth();
   const { preferences, setPreference } = useUiPreferences();
+  const isMobile = useIsMobile();
 
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -170,6 +180,7 @@ export default function JobsMapPage() {
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleData, setScheduleData] = useState({ date: '', time: '' });
   const isCompactSidebar = preferences.mapSidebarMode !== 'expanded';
+  const mobileSheetMode = preferences.mobileMapSheet || 'half';
 
   useEffect(() => {
     if (!user) return;
@@ -256,6 +267,13 @@ export default function JobsMapPage() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!isMobile) return;
+    if (!preferences.mobileMapSheet) {
+      setPreference('mobileMapSheet', 'half');
+    }
+  }, [isMobile, preferences.mobileMapSheet, setPreference]);
+
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
       const query = searchQuery.trim().toLowerCase();
@@ -329,167 +347,195 @@ export default function JobsMapPage() {
     }
   }
 
+  function setMobileSheet(mode) {
+    setPreference('mobileMapSheet', mode);
+  }
+
+  function renderFilters({ mobile = false } = {}) {
+    return (
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          <Input
+            data-testid="map-search-input"
+            placeholder="חיפוש לפי עבודה, לקוח או כתובת..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            className="border-0 bg-slate-50 pr-10 dark:bg-slate-800"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Input
+            data-testid="map-date-from"
+            type="date"
+            value={dateFrom}
+            onChange={(event) => setDateFrom(event.target.value)}
+          />
+          <Input
+            data-testid="map-date-to"
+            type="date"
+            value={dateTo}
+            onChange={(event) => setDateTo(event.target.value)}
+          />
+        </div>
+
+        {!mobile ? (
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
+            <Button
+              type="button"
+              size="sm"
+              variant={isCompactSidebar ? 'default' : 'ghost'}
+              className={isCompactSidebar ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
+              onClick={() => setPreference('mapSidebarMode', 'compact')}
+            >
+              <Rows3 className="ml-1 h-4 w-4" />
+              קומפקטי
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={isCompactSidebar ? 'ghost' : 'default'}
+              className={!isCompactSidebar ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
+              onClick={() => setPreference('mapSidebarMode', 'expanded')}
+            >
+              <LayoutGrid className="ml-1 h-4 w-4" />
+              מורחב
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  function renderSelectedJobPanel({ compact = false } = {}) {
+    if (!selectedJob) return null;
+    return (
+      <div className={`border-b border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60 ${compact ? 'space-y-2' : ''}`}>
+        <div className="mb-2 font-semibold text-slate-800 dark:text-slate-100">{selectedJob.title}</div>
+        <div className="text-sm text-slate-600 dark:text-slate-300">{selectedJob.account_name}</div>
+        <div className="mt-2 text-xs text-slate-500 dark:text-slate-300">{selectedJob.address_text || 'ללא כתובת'}</div>
+        <div className="mt-2">
+          <NextActionBadge status={selectedJob.status} />
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            data-testid="map-selected-schedule-button"
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setScheduleData({
+                date: selectedJob.scheduled_date || '',
+                time: toTenMinuteSlot(selectedJob.scheduled_time || ''),
+              });
+              setScheduleDialogOpen(true);
+            }}
+          >
+            <Clock className="ml-1 h-4 w-4" /> תזמון
+          </Button>
+
+          <Button
+            data-testid="map-selected-open-calendar"
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => navigate(createPageUrl(`Calendar?job_id=${selectedJob.id}`))}
+          >
+            <Calendar className="ml-1 h-4 w-4" /> ללוח שנה
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => navigate(createPageUrl(`JobDetails?id=${selectedJob.id}`))}
+          >
+            <Briefcase className="ml-1 h-4 w-4" /> פרטי עבודה
+          </Button>
+        </div>
+
+        {!compact ? (
+          <p data-testid="map-eta-source" className="mt-3 text-xs text-slate-500 dark:text-slate-300">
+            מקור ETA: {getEtaSourceText(selectedJob, jobs)}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  function renderJobsList({ compact = false } = {}) {
+    return (
+      <div className="space-y-3">
+        {filteredJobs.map((job) => (
+          <Card
+            key={job.id}
+            data-testid={`map-job-card-${job.id}`}
+            className={`cursor-pointer border-0 shadow-sm transition-all ${
+              selectedJob?.id === job.id ? 'ring-2 ring-emerald-500' : 'hover:shadow-md'
+            }`}
+            onClick={() => selectJob(job)}
+          >
+            <CardContent className="p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium text-slate-800 dark:text-slate-100">{job.title}</div>
+                  <div className="truncate text-sm text-slate-500 dark:text-slate-300">{job.account_name}</div>
+                  {!compact ? <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-300">{job.address_text}</div> : null}
+                  <div className="mt-1">
+                    <NextActionBadge status={job.status} />
+                  </div>
+                  {job.geocode_failed ? (
+                    <div className="mt-1 text-xs text-amber-600">מיקום לא אותר</div>
+                  ) : null}
+                  {job.invalid_coords ? (
+                    <div className="mt-1 text-xs text-amber-600">מיקום לא תקין</div>
+                  ) : null}
+                  {!job.hasCoords && !job.hasAddress ? (
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-300">אין כתובת למיקום</div>
+                  ) : null}
+                  {job.scheduled_start_at ? (
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-300">
+                      {format(new Date(job.scheduled_start_at), 'dd/MM/yyyy HH:mm')}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <JobStatusBadge status={job.status} />
+                  <PriorityBadge priority={job.priority} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
   if (isLoadingAuth || loading) return <LoadingSpinner />;
   if (!user) return null;
 
   return (
-    <div data-testid="map-page" dir="rtl" className="flex h-[calc(100vh-64px)] flex-col lg:h-screen lg:flex-row">
-      <aside className="order-2 flex h-1/2 flex-col border-l border-slate-200 bg-white lg:order-1 lg:h-full lg:w-[420px] dark:border-slate-800 dark:bg-slate-900">
-        <div className="border-b border-slate-200 p-4">
-          <h1 className="mb-4 flex items-center gap-2 text-xl font-bold text-slate-800">
-            <MapPin className="h-6 w-6 text-emerald-600" />
-            מפת עבודות
-          </h1>
-
-          <div className="space-y-3">
-            <div className="relative">
-              <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <Input
-                data-testid="map-search-input"
-                placeholder="חיפוש לפי עבודה, לקוח או כתובת..."
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="border-0 bg-slate-50 pr-10"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                data-testid="map-date-from"
-                type="date"
-                value={dateFrom}
-                onChange={(event) => setDateFrom(event.target.value)}
-              />
-              <Input
-                data-testid="map-date-to"
-                type="date"
-                value={dateTo}
-                onChange={(event) => setDateTo(event.target.value)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
-              <Button
-                type="button"
-                size="sm"
-                variant={isCompactSidebar ? 'default' : 'ghost'}
-                className={isCompactSidebar ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
-                onClick={() => setPreference('mapSidebarMode', 'compact')}
-              >
-                <Rows3 className="ml-1 h-4 w-4" />
-                קומפקטי
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={isCompactSidebar ? 'ghost' : 'default'}
-                className={!isCompactSidebar ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
-                onClick={() => setPreference('mapSidebarMode', 'expanded')}
-              >
-                <LayoutGrid className="ml-1 h-4 w-4" />
-                מורחב
-              </Button>
-            </div>
+    <div
+      data-testid="map-page"
+      dir="rtl"
+      className={isMobile ? 'relative h-[calc(100dvh-8.4rem)] overflow-hidden' : 'flex h-[calc(100vh-64px)] lg:h-screen lg:flex-row'}
+    >
+      {!isMobile ? (
+        <aside className="order-2 flex h-full flex-col border-l border-slate-200 bg-white lg:order-1 lg:w-[420px] dark:border-slate-800 dark:bg-slate-900">
+          <div className="border-b border-slate-200 p-4 dark:border-slate-700">
+            <h1 className="mb-4 flex items-center gap-2 text-xl font-bold text-slate-800 dark:text-slate-100">
+              <MapPin className="h-6 w-6 text-emerald-600" />
+              מפת עבודות
+            </h1>
+            {renderFilters()}
           </div>
-        </div>
+          {renderSelectedJobPanel()}
+          <div className="flex-1 overflow-y-auto p-4">{renderJobsList({ compact: isCompactSidebar })}</div>
+        </aside>
+      ) : null}
 
-        {selectedJob ? (
-          <div className="border-b border-slate-200 bg-slate-50 p-4">
-            <div className="mb-2 font-semibold text-slate-800">{selectedJob.title}</div>
-            <div className="text-sm text-slate-600">{selectedJob.account_name}</div>
-            <div className="mt-2 text-xs text-slate-500">{selectedJob.address_text || 'ללא כתובת'}</div>
-            <div className="mt-2">
-              <NextActionBadge status={selectedJob.status} />
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                data-testid="map-selected-schedule-button"
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setScheduleData({
-                    date: selectedJob.scheduled_date || '',
-                    time: toTenMinuteSlot(selectedJob.scheduled_time || ''),
-                  });
-                  setScheduleDialogOpen(true);
-                }}
-              >
-                <Clock className="ml-1 h-4 w-4" /> תזמון
-              </Button>
-
-              <Button
-                data-testid="map-selected-open-calendar"
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => navigate(createPageUrl(`Calendar?job_id=${selectedJob.id}`))}
-              >
-                <Calendar className="ml-1 h-4 w-4" /> ללוח שנה
-              </Button>
-
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => navigate(createPageUrl(`JobDetails?id=${selectedJob.id}`))}
-              >
-                <Briefcase className="ml-1 h-4 w-4" /> פרטי עבודה
-              </Button>
-            </div>
-
-            <p data-testid="map-eta-source" className="mt-3 text-xs text-slate-500">
-              מקור ETA: {getEtaSourceText(selectedJob, jobs)}
-            </p>
-          </div>
-        ) : null}
-
-        <div className="flex-1 space-y-3 overflow-y-auto p-4">
-          {filteredJobs.map((job) => (
-            <Card
-              key={job.id}
-              data-testid={`map-job-card-${job.id}`}
-              className={`cursor-pointer border-0 shadow-sm transition-all ${
-                selectedJob?.id === job.id ? 'ring-2 ring-emerald-500' : 'hover:shadow-md'
-              }`}
-              onClick={() => selectJob(job)}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium text-slate-800">{job.title}</div>
-                    <div className="truncate text-sm text-slate-500">{job.account_name}</div>
-                    {!isCompactSidebar ? <div className="mt-1 truncate text-xs text-slate-500">{job.address_text}</div> : null}
-                    <div className="mt-1">
-                      <NextActionBadge status={job.status} />
-                    </div>
-                    {job.geocode_failed ? (
-                      <div className="mt-1 text-xs text-amber-600">מיקום לא אותר</div>
-                    ) : null}
-                    {job.invalid_coords ? (
-                      <div className="mt-1 text-xs text-amber-600">מיקום לא תקין</div>
-                    ) : null}
-                    {!job.hasCoords && !job.hasAddress ? (
-                      <div className="mt-1 text-xs text-slate-500">אין כתובת למיקום</div>
-                    ) : null}
-                    {job.scheduled_start_at ? (
-                      <div className="mt-1 text-xs text-slate-500">
-                        {format(new Date(job.scheduled_start_at), 'dd/MM/yyyy HH:mm')}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <JobStatusBadge status={job.status} />
-                    <PriorityBadge priority={job.priority} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </aside>
-
-      <section className="order-1 h-1/2 flex-1 lg:order-2 lg:h-full">
+      <section className={isMobile ? 'h-full w-full' : 'order-1 h-full flex-1 lg:order-2'}>
         <MapContainer center={mapCenter} zoom={12} style={{ height: '100%', width: '100%' }}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -529,6 +575,91 @@ export default function JobsMapPage() {
             ))}
         </MapContainer>
       </section>
+
+      {isMobile ? (
+        <div
+          className="absolute inset-x-0 bottom-0 z-[450] transition-[height] duration-300"
+          style={{
+            height: MOBILE_SHEET_HEIGHT[mobileSheetMode] || MOBILE_SHEET_HEIGHT.half,
+            paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))',
+          }}
+        >
+          <div className="flex h-full flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+            <div className="border-b border-slate-200 p-3 dark:border-slate-700">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMobileSheet(mobileSheetMode === 'collapsed' ? 'half' : 'collapsed')}
+                  className="mx-auto h-1.5 w-16 rounded-full bg-slate-300 dark:bg-slate-600"
+                  aria-label="שינוי מצב חלונית המפה"
+                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant={mobileSheetMode === 'collapsed' ? 'default' : 'outline'}
+                    size="icon"
+                    className={mobileSheetMode === 'collapsed' ? 'h-7 w-7 bg-[#00214d] text-white' : 'h-7 w-7'}
+                    onClick={() => setMobileSheet('collapsed')}
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={mobileSheetMode === 'half' ? 'default' : 'outline'}
+                    size="icon"
+                    className={mobileSheetMode === 'half' ? 'h-7 w-7 bg-[#00214d] text-white' : 'h-7 w-7'}
+                    onClick={() => setMobileSheet('half')}
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={mobileSheetMode === 'full' ? 'default' : 'outline'}
+                    size="icon"
+                    className={mobileSheetMode === 'full' ? 'h-7 w-7 bg-[#00214d] text-white' : 'h-7 w-7'}
+                    onClick={() => setMobileSheet('full')}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">עבודות במפה</h2>
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  {filteredJobs.length} עבודות
+                </span>
+              </div>
+            </div>
+
+            {mobileSheetMode !== 'collapsed' ? (
+              <>
+                <div className="border-b border-slate-200 p-3 dark:border-slate-700">
+                  {renderFilters({ mobile: true })}
+                </div>
+                {renderSelectedJobPanel({ compact: true })}
+                <div className="flex-1 overflow-y-auto p-3">
+                  {renderJobsList({ compact: false })}
+                </div>
+              </>
+            ) : (
+              <div className="p-3">
+                {selectedJob ? (
+                  <button
+                    type="button"
+                    className="w-full rounded-xl bg-slate-50 p-3 text-right dark:bg-slate-800"
+                    onClick={() => setMobileSheet('half')}
+                  >
+                    <p className="truncate font-semibold text-slate-800 dark:text-slate-100">{selectedJob.title}</p>
+                    <p className="truncate text-xs text-slate-500 dark:text-slate-300">{selectedJob.account_name}</p>
+                  </button>
+                ) : (
+                  <p className="text-xs text-slate-500 dark:text-slate-300">בחר עבודה ברשימה להצגת פרטים מהירים</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       <Dialog open={scheduleDialogOpen} onOpenChange={setScheduleDialogOpen}>
         <DialogContent className="max-w-md">

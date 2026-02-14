@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Plus, X, Briefcase, Users, FileText } from 'lucide-react';
@@ -15,34 +15,45 @@ export default function FloatingActionButton() {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 lg:hidden">
+    <>
       {isOpen ? (
-        <div className="mb-3 flex flex-col gap-2">
-          {actions.map((action) => (
-            <Button
-              key={action.key}
-              type="button"
-              onClick={() => {
-                setIsOpen(false);
-                navigate(createPageUrl(action.page));
-              }}
-              className="h-11 justify-start gap-2 rounded-full bg-white px-4 text-slate-700 shadow-lg hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-            >
-              <action.icon className="h-4 w-4" />
-              <span className="text-xs font-medium">{action.label}</span>
-            </Button>
-          ))}
-        </div>
+        <button
+          type="button"
+          aria-label="סגור פעולות מהירות"
+          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 z-[55] bg-slate-900/20 backdrop-blur-[1px] lg:hidden"
+        />
       ) : null}
 
-      <Button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className="h-14 w-14 rounded-full bg-[#00214d] text-white shadow-xl transition hover:opacity-90"
-        aria-label="פעולות יצירה מהירות"
-      >
-        {isOpen ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
-      </Button>
-    </div>
+      <div className="fixed bottom-[calc(5.2rem+env(safe-area-inset-bottom))] right-4 z-[60] lg:hidden">
+        {isOpen ? (
+          <div className="mb-3 flex flex-col items-end gap-2">
+            {actions.map((action) => (
+              <Button
+                key={action.key}
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  navigate(createPageUrl(action.page));
+                }}
+                className="h-11 justify-start gap-2 rounded-full border border-slate-200 bg-white px-4 text-slate-700 shadow-lg hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+              >
+                <action.icon className="h-4 w-4" />
+                <span className="text-xs font-semibold">{action.label}</span>
+              </Button>
+            ))}
+          </div>
+        ) : null}
+
+        <Button
+          type="button"
+          onClick={() => setIsOpen((prev) => !prev)}
+          className="h-14 w-14 rounded-full bg-[#00214d] text-white shadow-xl transition hover:opacity-90"
+          aria-label="פעולות יצירה מהירות"
+        >
+          {isOpen ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
+        </Button>
+      </div>
+    </>
   );
 }

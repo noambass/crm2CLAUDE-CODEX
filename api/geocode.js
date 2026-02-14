@@ -1,7 +1,12 @@
 import crypto from 'crypto';
 import { getGeoCacheByHash, upsertGeoCache } from './_cacheClient.js';
 import { limitByIp } from './_rateLimit.js';
-import { isUsableJobCoords, normalizeAddressText, parseCoord } from '../src/lib/geo/coordsPolicy.js';
+import {
+  buildAddressQueryVariants,
+  isUsableJobCoords,
+  normalizeAddressText,
+  parseCoord,
+} from '../src/lib/geo/coordsPolicy.js';
 
 function normalizeAddress(input) {
   return normalizeAddressText(String(input || '').replace(/[;,]+/g, ', '));
@@ -20,7 +25,10 @@ function addressHash(value) {
 function toQueries(normalized) {
   const noSuffix = stripTrailingAddressSuffix(normalized);
   const raw = noSuffix || normalized;
-  return Array.from(new Set([raw, `${raw}, \u05D9\u05E9\u05E8\u05D0\u05DC`].map((q) => q.trim()).filter(Boolean)));
+  const withVariants = buildAddressQueryVariants(raw);
+  return withVariants.length > 0
+    ? withVariants
+    : Array.from(new Set([raw, `${raw}, \u05D9\u05E9\u05E8\u05D0\u05DC`].map((q) => q.trim()).filter(Boolean)));
 }
 
 async function geocodeWithGoogle(query) {

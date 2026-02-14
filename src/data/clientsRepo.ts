@@ -1,4 +1,5 @@
 import { supabase } from '@/api/supabaseClient';
+import { normalizeAddressText } from '@/lib/geo/coordsPolicy';
 
 export function getAccountLabel(account) {
   return String(account?.account_name || '').trim() || 'ללא לקוח';
@@ -14,24 +15,20 @@ export async function listClientProfiles(searchText = '') {
   const { data: contacts, error: contactsError } = await supabase
     .from('contacts')
     .select('*')
-    .order('is_primary', { ascending: false })
+    .eq('is_primary', true)
     .order('created_at', { ascending: true });
   if (contactsError) throw contactsError;
 
-  const contactsByAccount = new Map();
+  const primaryByAccount = new Map();
   (contacts || []).forEach((contact) => {
-    if (!contactsByAccount.has(contact.account_id)) contactsByAccount.set(contact.account_id, []);
-    contactsByAccount.get(contact.account_id).push(contact);
+    if (!contact.account_id) return;
+    primaryByAccount.set(contact.account_id, contact);
   });
 
-  const profiles = (accounts || []).map((account) => {
-    const accountContacts = contactsByAccount.get(account.id) || [];
-    return {
-      account,
-      contacts: accountContacts,
-      primaryContact: accountContacts.find((c) => c.is_primary) || accountContacts[0] || null,
-    };
-  });
+  const profiles = (accounts || []).map((account) => ({
+    account,
+    primaryContact: primaryByAccount.get(account.id) || null,
+  }));
 
   if (!searchText.trim()) return profiles;
   const q = searchText.toLowerCase();
@@ -39,7 +36,6 @@ export async function listClientProfiles(searchText = '') {
     const c = p.primaryContact;
     return (
       p.account.account_name?.toLowerCase().includes(q) ||
-      c?.full_name?.toLowerCase().includes(q) ||
       c?.phone?.includes(q) ||
       c?.email?.toLowerCase().includes(q)
     );
@@ -54,19 +50,34 @@ export async function getClientProfile(accountId) {
     .single();
   if (accountError) throw accountError;
 
-  const { data: contacts, error: contactsError } = await supabase
+  const { data: primaryContact, error: primaryError } = await supabase
     .from('contacts')
     .select('*')
     .eq('account_id', accountId)
-    .order('is_primary', { ascending: false })
-    .order('created_at', { ascending: true });
-  if (contactsError) throw contactsError;
+    .eq('is_primary', true)
+    .limit(1)
+    .maybeSingle();
+  if (primaryError) throw primaryError;
 
-  const allContacts = contacts || [];
+  if (primaryContact) {
+    return {
+      account,
+      primaryContact,
+    };
+  }
+
+  const { data: fallbackContact, error: fallbackError } = await supabase
+    .from('contacts')
+    .select('*')
+    .eq('account_id', accountId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (fallbackError) throw fallbackError;
+
   return {
     account,
-    contacts: allContacts,
-    primaryContact: allContacts.find((c) => c.is_primary) || allContacts[0] || null,
+    primaryContact: fallbackContact || null,
   };
 }
 
@@ -74,26 +85,30 @@ export async function createClient(input) {
   const accountName = (input.fullName || '').trim();
   const { data: account, error: accountError } = await supabase
     .from('accounts')
-    .insert([{
-      account_name: accountName,
-      notes: input.internalNotes || null,
-      status: input.status || 'active',
-      client_type: input.clientType || 'private',
-    }])
+    .insert([
+      {
+        account_name: accountName,
+        notes: input.internalNotes || null,
+        status: input.status || 'active',
+        client_type: input.clientType || 'private',
+      },
+    ])
     .select('*')
     .single();
   if (accountError) throw accountError;
 
   const { data: contact, error: contactError } = await supabase
     .from('contacts')
-    .insert([{
-      account_id: account.id,
-      full_name: accountName,
-      phone: input.phone || null,
-      email: input.email || null,
-      address_text: input.addressText || null,
-      is_primary: true,
-    }])
+    .insert([
+      {
+        account_id: account.id,
+        full_name: accountName,
+        phone: input.phone || null,
+        email: input.email || null,
+        address_text: normalizeAddressText(input.addressText) || null,
+        is_primary: true,
+      },
+    ])
     .select('*')
     .single();
   if (contactError) throw contactError;
@@ -123,6 +138,8 @@ export async function updateClient(accountId, input) {
     .maybeSingle();
   if (primaryFetchError) throw primaryFetchError;
 
+  let primaryId = primary?.id || null;
+
   if (primary?.id) {
     const { error: primaryUpdateError } = await supabase
       .from('contacts')
@@ -130,30 +147,41 @@ export async function updateClient(accountId, input) {
         full_name: fullName,
         phone: input.phone || null,
         email: input.email || null,
-        address_text: input.addressText || null,
+        address_text: normalizeAddressText(input.addressText) || null,
       })
       .eq('id', primary.id);
     if (primaryUpdateError) throw primaryUpdateError;
   } else {
-    const { error: primaryInsertError } = await supabase
+    const { data: insertedPrimary, error: primaryInsertError } = await supabase
       .from('contacts')
-      .insert([{
-        account_id: accountId,
-        full_name: fullName,
-        phone: input.phone || null,
-        email: input.email || null,
-        address_text: input.addressText || null,
-        is_primary: true,
-      }]);
+      .insert([
+        {
+          account_id: accountId,
+          full_name: fullName,
+          phone: input.phone || null,
+          email: input.email || null,
+          address_text: normalizeAddressText(input.addressText) || null,
+          is_primary: true,
+        },
+      ])
+      .select('id')
+      .single();
     if (primaryInsertError) throw primaryInsertError;
+    primaryId = insertedPrimary?.id || null;
+  }
+
+  if (primaryId) {
+    const { error: cleanupError } = await supabase
+      .from('contacts')
+      .delete()
+      .eq('account_id', accountId)
+      .neq('id', primaryId);
+    if (cleanupError) throw cleanupError;
   }
 }
 
 export async function deleteClient(accountId) {
-  const { error } = await supabase
-    .from('accounts')
-    .delete()
-    .eq('id', accountId);
+  const { error } = await supabase.from('accounts').delete().eq('id', accountId);
   if (error) throw error;
 }
 
@@ -171,4 +199,3 @@ export async function findClientByPhone(phone) {
   const match = (data || []).find((c) => String(c.phone || '').replace(/\D/g, '') === normalized);
   return match || null;
 }
-

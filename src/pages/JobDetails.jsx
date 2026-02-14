@@ -630,13 +630,6 @@ export default function JobDetails() {
               <p className="mt-1 font-medium text-slate-800 dark:text-slate-100">{accountName}</p>
             </div>
 
-            {clientPrimaryContact?.full_name ? (
-              <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
-                <p className="text-xs text-slate-500 dark:text-slate-300">איש קשר ראשי</p>
-                <p className="mt-1 font-medium text-slate-800 dark:text-slate-100">{clientPrimaryContact.full_name}</p>
-              </div>
-            ) : null}
-
             {clientPrimaryContact?.phone ? (
               <a
                 href={`tel:${clientPrimaryContact.phone}`}
