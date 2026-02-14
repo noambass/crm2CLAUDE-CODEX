@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import {
   ArrowRight,
+  CalendarClock,
   ChevronDown,
   ChevronUp,
   Edit,
@@ -11,6 +12,9 @@ import {
   Loader2,
   Briefcase,
   ExternalLink,
+  MapPin,
+  ListChecks,
+  Clock3,
   User,
 } from 'lucide-react';
 import { createPageUrl } from '@/utils';
@@ -56,6 +60,20 @@ function findQuoteTransitionPath(fromStatus, toStatus) {
   }
 
   return null;
+}
+
+function formatDateSafe(value) {
+  if (!value) return 'לא זמין';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'לא זמין';
+  return format(parsed, 'dd/MM/yyyy', { locale: he });
+}
+
+function formatDateTimeSafe(value) {
+  if (!value) return 'לא מתוזמן';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'לא מתוזמן';
+  return format(parsed, 'dd/MM/yyyy HH:mm', { locale: he });
 }
 
 export default function QuoteDetails() {
@@ -252,87 +270,242 @@ export default function QuoteDetails() {
 
   const canEdit = quote.status === 'draft' && !quote.converted_job_id;
   const canConvert = !quote.converted_job_id && quote.status !== 'rejected';
-  const canReject = !quote.converted_job_id && quote.status !== 'rejected';
+  const canReject = !quote.converted_job_id
+    && quote.status !== 'rejected'
+    && findQuoteTransitionPath(quote.status, 'rejected') !== null;
+  const statusControlsLocked = Boolean(quote.converted_job_id);
+  const subtotal = Number(quote.total || 0);
+  const vatAmount = subtotal * 0.18;
+  const grossTotal = subtotal + vatAmount;
+  const quoteNumber = quote.id ? String(quote.id).split('-')[0].toUpperCase() : '---';
+  const hasAnyDetails = Boolean(
+    quote.title
+    || quote.description
+    || quote.address_text
+    || quote.arrival_notes
+    || quote.scheduled_start_at,
+  );
 
   return (
-    <div dir="rtl" className="mx-auto max-w-4xl space-y-6 p-4 lg:p-8">
-      <div className="text-sm text-slate-500">נוצרה: {format(new Date(quote.created_at), 'dd/MM/yyyy', { locale: he })}</div>
+    <div dir="rtl" className="mx-auto max-w-6xl space-y-6 p-4 lg:p-8">
+      <Card className="overflow-hidden border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <CardContent className="p-0">
+          <div className="flex flex-wrap items-start gap-3 border-b border-slate-100 p-5 dark:border-slate-800">
+            <Button variant="ghost" size="icon" onClick={() => navigate(createPageUrl('Quotes'))} className="rounded-full">
+              <ArrowRight className="h-5 w-5" />
+            </Button>
 
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(createPageUrl('Quotes'))} className="rounded-full">
-          <ArrowRight className="h-5 w-5" />
-        </Button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">פרטי הצעת מחיר</h1>
+              <p className="mt-1 inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                <User className="h-4 w-4" />
+                {quote.accounts?.account_name || 'ללא לקוח'}
+              </p>
+            </div>
 
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-slate-800">הצעת מחיר</h1>
-          <p className="mt-1 text-blue-600">
-            <User className="ml-1 inline h-4 w-4" />
-            {quote.accounts?.account_name || 'ללא לקוח'}
-          </p>
-        </div>
-
-        <div className="text-2xl font-bold text-slate-800" dir="ltr">
-          ₪{Number(quote.total || 0).toFixed(2)}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-slate-500">סטטוס:</span>
-        <Badge
-          variant="outline"
-          style={{
-            backgroundColor: `${statusCfg.color}20`,
-            color: statusCfg.color,
-            borderColor: statusCfg.color,
-          }}
-          className="px-3 py-1 text-base font-medium"
-        >
-          {statusCfg.label}
-        </Badge>
-      </div>
-
-      {(canReject || canConvert) ? (
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <p className="mb-3 text-sm text-slate-500">פעולות סטטוס:</p>
-            <div className="flex flex-wrap gap-2">
-              {canReject ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {canEdit ? (
                 <Button
-                  data-testid="quote-status-rejected"
-                  size="sm"
-                  disabled={updating || converting}
-                  onClick={() => updateStatus('rejected')}
-                  className="bg-red-600 text-white hover:bg-red-700"
+                  data-testid="quote-edit-draft"
+                  variant="outline"
+                  className="border-slate-300 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+                  onClick={() => navigate(createPageUrl(`QuoteForm?id=${quote.id}`))}
                 >
-                  סמן כנדחתה
+                  <Edit className="ml-2 h-4 w-4" />
+                  ערוך טיוטה
                 </Button>
               ) : null}
-
-              {canConvert ? (
+              {quote.converted_job_id ? (
                 <Button
-                  data-testid="quote-convert-to-job"
-                  size="sm"
-                  onClick={convertToJob}
-                  disabled={converting || updating}
-                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                  variant="outline"
+                  className="border-slate-300 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+                  onClick={() => navigate(createPageUrl(`JobDetails?id=${quote.converted_job_id}`))}
                 >
-                  {converting ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Briefcase className="ml-2 h-4 w-4" />}
-                  המר לעבודה
+                  <ExternalLink className="ml-2 h-4 w-4" />
+                  פתח עבודה
                 </Button>
               ) : null}
             </div>
+          </div>
 
-            {!quote.converted_job_id ? (
-              <Collapsible open={advancedStatusOpen} onOpenChange={setAdvancedStatusOpen} className="mt-4 border-t border-slate-200 pt-3">
+          <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/70">
+              <p className="text-xs text-slate-500 dark:text-slate-300">מספר הצעה</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{quoteNumber}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/70">
+              <p className="text-xs text-slate-500 dark:text-slate-300">סטטוס נוכחי</p>
+              <Badge
+                variant="outline"
+                style={{
+                  backgroundColor: `${statusCfg.color}20`,
+                  color: statusCfg.color,
+                  borderColor: statusCfg.color,
+                }}
+                className="mt-1 font-medium"
+              >
+                {statusCfg.label}
+              </Badge>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/70">
+              <p className="text-xs text-slate-500 dark:text-slate-300">נוצרה בתאריך</p>
+              <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{formatDateSafe(quote.created_at)}</p>
+            </div>
+            <div className="rounded-xl border border-[#00214d]/20 bg-gradient-to-br from-[#001335] to-[#00214d] px-3 py-2 text-white dark:border-cyan-500/30 dark:from-slate-900 dark:to-[#1b4f84]">
+              <p className="text-xs text-blue-100">סה"כ כולל מע"מ</p>
+              <p className="mt-1 text-lg font-bold" dir="ltr">₪{grossTotal.toFixed(2)}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-12">
+        <div className="space-y-6 xl:col-span-8">
+          <Card className="border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-lg">שורות שירות</CardTitle>
+                <Badge variant="outline" className="border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                  <ListChecks className="ml-1 h-3.5 w-3.5" />
+                  {lineItems.length} שורות
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {lineItems.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
+                  אין שורות בהצעה זו
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {lineItems.map((item, idx) => {
+                    const qty = Number(item.quantity) || 0;
+                    const unit = Number(item.unit_price) || 0;
+                    const lineTotal = Number(item.line_total) || qty * unit;
+
+                    return (
+                      <div
+                        key={item.id || idx}
+                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-slate-700 dark:bg-slate-900"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">{item.description || 'שירות'}</p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">שורה #{idx + 1}</p>
+                          </div>
+                          <div className="rounded-xl bg-[#00214d]/10 px-3 py-1.5 dark:bg-cyan-500/15">
+                            <p dir="ltr" className="text-lg font-bold text-[#00214d] dark:text-cyan-300">
+                              ₪{lineTotal.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800">
+                            <span className="text-slate-500 dark:text-slate-300">כמות: </span>
+                            <span className="font-medium text-slate-800 dark:text-slate-100">{qty}</span>
+                          </div>
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800" dir="ltr">
+                            <span className="text-slate-500 dark:text-slate-300">מחיר יחידה: </span>
+                            <span className="font-medium text-slate-800 dark:text-slate-100">₪{unit.toFixed(2)}</span>
+                          </div>
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800" dir="ltr">
+                            <span className="text-slate-500 dark:text-slate-300">סה"כ שורה: </span>
+                            <span className="font-medium text-slate-800 dark:text-slate-100">₪{lineTotal.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <div className="rounded-2xl border border-[#00214d]/20 bg-gradient-to-br from-[#001335] to-[#00214d] p-4 text-white shadow-lg dark:border-cyan-500/30 dark:from-slate-900 dark:to-[#1b4f84]">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="rounded-xl bg-white/10 px-3 py-2">
+                        <p className="text-xs text-blue-100">לפני מע"מ</p>
+                        <p dir="ltr" className="mt-1 text-lg font-semibold">₪{subtotal.toFixed(2)}</p>
+                      </div>
+                      <div className="rounded-xl bg-white/10 px-3 py-2">
+                        <p className="text-xs text-blue-100">מע"מ (18%)</p>
+                        <p dir="ltr" className="mt-1 text-lg font-semibold">₪{vatAmount.toFixed(2)}</p>
+                      </div>
+                      <div className="rounded-xl bg-white/20 px-3 py-2 ring-1 ring-white/20">
+                        <p className="text-xs text-blue-100">סה"כ כולל מע"מ</p>
+                        <p dir="ltr" className="mt-1 text-xl font-bold">₪{grossTotal.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {quote.notes ? (
+            <Card className="border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+              <CardHeader>
+                <CardTitle className="text-lg">הערות</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-200">{quote.notes}</p>
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+
+        <div className="space-y-6 xl:col-span-4">
+          <Card className="border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">פעולות סטטוס</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {statusControlsLocked ? (
+                <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200">
+                  ההצעה כבר הומרה לעבודה ולכן פעולות סטטוס מהירות נעולות.
+                </p>
+              ) : (canReject || canConvert) ? (
+                <div className="flex flex-wrap gap-2">
+                  {canReject ? (
+                    <Button
+                      data-testid="quote-status-rejected"
+                      size="sm"
+                      disabled={updating || converting}
+                      onClick={() => updateStatus('rejected')}
+                      className="bg-red-600 text-white hover:bg-red-700"
+                    >
+                      סמן כנדחתה
+                    </Button>
+                  ) : null}
+
+                  {canConvert ? (
+                    <Button
+                      data-testid="quote-convert-to-job"
+                      size="sm"
+                      onClick={convertToJob}
+                      disabled={converting || updating}
+                      className="bg-emerald-600 text-white hover:bg-emerald-700"
+                    >
+                      {converting ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Briefcase className="ml-2 h-4 w-4" />}
+                      המר לעבודה
+                    </Button>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                  אין פעולות סטטוס מהירות זמינות לסטטוס הנוכחי.
+                </p>
+              )}
+
+              <Collapsible open={advancedStatusOpen} onOpenChange={setAdvancedStatusOpen} className="border-t border-slate-200 pt-3 dark:border-slate-700">
                 <CollapsibleTrigger asChild>
-                  <Button type="button" variant="ghost" size="sm" data-testid="quote-manual-status-toggle">
-                    {advancedStatusOpen ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />}
-                    שינוי סטטוס ידני (מתקדם)
+                  <Button type="button" variant="ghost" size="sm" className="w-full justify-between" data-testid="quote-manual-status-toggle">
+                    <span>שינוי סטטוס ידני (מתקדם)</span>
+                    {advancedStatusOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-3">
-                  {manualStatusOptions.length === 0 ? (
-                    <p className="text-xs text-slate-500">אין מעברי סטטוס ידניים זמינים מהסטטוס הנוכחי.</p>
+                  {statusControlsLocked ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-300">שינוי סטטוס ידני חסום לאחר המרה לעבודה.</p>
+                  ) : manualStatusOptions.length === 0 ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-300">אין מעברי סטטוס ידניים זמינים מהסטטוס הנוכחי.</p>
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {manualStatusOptions.map((option) => (
@@ -353,91 +526,65 @@ export default function QuoteDetails() {
                   )}
                 </CollapsibleContent>
               </Collapsible>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
+            </CardContent>
+          </Card>
 
-      <div className="flex flex-wrap gap-3">
-        {canEdit ? (
-          <Button data-testid="quote-edit-draft" variant="outline" onClick={() => navigate(createPageUrl(`QuoteForm?id=${quote.id}`))}>
-            <Edit className="ml-2 h-4 w-4" />
-            ערוך טיוטה
-          </Button>
-        ) : null}
-
-        {quote.converted_job_id ? (
-          <Button variant="outline" onClick={() => navigate(createPageUrl(`JobDetails?id=${quote.converted_job_id}`))}>
-            <ExternalLink className="ml-2 h-4 w-4" />
-            פתח עבודה
-          </Button>
-        ) : null}
-      </div>
-
-      <Card className="border-0 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg">שורות שירות</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {lineItems.length === 0 ? (
-            <p className="py-4 text-center text-slate-500">אין שורות בהצעה זו</p>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid grid-cols-12 gap-2 border-b px-2 pb-2 text-sm font-medium text-slate-500">
-                <div className="col-span-5">תיאור</div>
-                <div className="col-span-2 text-center">כמות</div>
-                <div className="col-span-2 text-center">מחיר יחידה</div>
-                <div className="col-span-3 text-left">סה"כ</div>
-              </div>
-
-              {lineItems.map((item, idx) => {
-                const qty = Number(item.quantity) || 0;
-                const unit = Number(item.unit_price) || 0;
-                const lineTotal = Number(item.line_total) || qty * unit;
-
-                return (
-                  <div key={item.id || idx} className="grid grid-cols-12 items-center gap-2 rounded-lg bg-slate-50 p-3">
-                    <div className="col-span-5 font-medium text-slate-800">{item.description}</div>
-                    <div className="col-span-2 text-center text-slate-600">{qty}</div>
-                    <div className="col-span-2 text-center text-slate-600" dir="ltr">
-                      ₪{unit.toFixed(2)}
+          <Card className="border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">פרטי הצעה</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {!hasAnyDetails ? (
+                <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                  לא הוזנו פרטים נוספים להצעה זו.
+                </p>
+              ) : (
+                <>
+                  {quote.title ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                      <p className="text-xs text-slate-500 dark:text-slate-300">כותרת</p>
+                      <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-100">{quote.title}</p>
                     </div>
-                    <div className="col-span-3 text-left font-semibold text-slate-800" dir="ltr">
-                      ₪{lineTotal.toFixed(2)}
+                  ) : null}
+
+                  {quote.description ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                      <p className="text-xs text-slate-500 dark:text-slate-300">תיאור</p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{quote.description}</p>
                     </div>
+                  ) : null}
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                    <p className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-300">
+                      <MapPin className="h-3.5 w-3.5" />
+                      כתובת
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-100">{quote.address_text || 'לא הוזנה כתובת'}</p>
                   </div>
-                );
-              })}
 
-              <div className="space-y-2 rounded-xl bg-slate-800 p-4 text-white">
-                <div className="flex items-center justify-between text-sm">
-                  <span>סכום לפני מע"מ:</span>
-                  <span dir="ltr">₪{Number(quote.total || 0).toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span>מע"מ (18%):</span>
-                  <span dir="ltr">₪{(Number(quote.total || 0) * 0.18).toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between border-t border-white/20 pt-2 text-lg font-bold">
-                  <span>סה"כ הצעה:</span>
-                  <span dir="ltr">₪{(Number(quote.total || 0) * 1.18).toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                    <p className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-300">
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      תזמון
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-100">{formatDateTimeSafe(quote.scheduled_start_at)}</p>
+                  </div>
 
-      {quote.notes ? (
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg">הערות</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap text-slate-700">{quote.notes}</p>
-          </CardContent>
-        </Card>
-      ) : null}
+                  {quote.arrival_notes ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                      <p className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-300">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        הערות הגעה
+                      </p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{quote.arrival_notes}</p>
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
