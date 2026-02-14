@@ -1,0 +1,9 @@
+﻿{
+  "name": "עולם הציפויים",
+  "short_name": "עולם הציפויים",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#00214d",
+  "icons": []
+}
