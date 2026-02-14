@@ -16,7 +16,14 @@ export interface Quote {
   id: string;
   account_id: string;
   status: QuoteStatus;
+  title: string | null;
+  description: string | null;
   notes: string | null;
+  address_text: string | null;
+  arrival_notes: string | null;
+  lat: number | null;
+  lng: number | null;
+  scheduled_start_at: string | null;
   total: number;
   converted_job_id: string | null;
   created_at: string;

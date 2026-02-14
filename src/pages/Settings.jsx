@@ -3,7 +3,7 @@ import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import {
   Settings as SettingsIcon, Users,
-  Plus, Edit, Trash2, Save, Loader2, MoreVertical
+  Plus, Edit, Trash2, Save, Loader2, MoreVertical, LogOut
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,7 @@ const roleLabels = {
 };
 
 export default function Settings() {
-  const { user, isLoadingAuth } = useAuth();
+  const { user, isLoadingAuth, logout } = useAuth();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -316,6 +316,19 @@ export default function Settings() {
             </CardContent>
           </Card>
 
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-lg">חשבון</CardTitle>
+          <CardDescription>ניהול התחברות משתמש</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button type="button" variant="outline" className="text-red-600" onClick={() => logout()}>
+            <LogOut className="w-4 h-4 ml-2" />
+            התנתקות
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Employee Dialog */}
       <Dialog open={employeeDialogOpen} onOpenChange={setEmployeeDialogOpen}>
         <DialogContent dir="rtl" className="sm:max-w-md">
@@ -408,3 +421,4 @@ export default function Settings() {
     </div>
   );
 }
+

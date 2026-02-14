@@ -9,6 +9,7 @@ import { listJobsByAccount } from '@/data/jobsRepo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ClientTypeBadge } from '@/components/ui/DynamicStatusBadge';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import EmptyState from '@/components/shared/EmptyState';
 import { toast } from 'sonner';
@@ -115,7 +116,11 @@ export default function ClientDetails() {
           <CardTitle>פרטים</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-slate-700">
-          <div>סטטוס: <Badge variant="outline">{profile.account.status || 'active'}</Badge></div>
+          <div className="flex items-center gap-2">
+            <span>סטטוס:</span>
+            <Badge variant="outline">{profile.account.status || 'active'}</Badge>
+            <ClientTypeBadge type={profile.account.client_type || 'private'} />
+          </div>
           {primary?.full_name ? <div>איש קשר: {primary.full_name}</div> : null}
           {primary?.phone ? <div dir="ltr">טלפון: {primary.phone}</div> : null}
           {primary?.email ? <div dir="ltr">אימייל: {primary.email}</div> : null}

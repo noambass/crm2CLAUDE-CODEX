@@ -1,12 +1,7 @@
-﻿import React from 'react';
+import React from 'react';
 import { Badge } from '@/components/ui/badge';
-
-const defaultJobStatuses = {
-  quote: { label: 'הצעת מחיר', color: '#6366f1' },
-  waiting_schedule: { label: 'ממתין לתזמון', color: '#f59e0b' },
-  waiting_execution: { label: 'ממתין לביצוע', color: '#3b82f6' },
-  done: { label: 'בוצע', color: '#10b981' },
-};
+import { getStatusPresentation } from '@/lib/workflow/statusPresentation';
+import { getNextAction } from '@/lib/workflow/nextActionResolver';
 
 const defaultJobPriorities = {
   normal: { label: 'רגיל', color: '#64748b' },
@@ -28,7 +23,7 @@ const defaultQuoteStatuses = {
   rejected: { label: 'נדחתה', color: '#ef4444' },
 };
 
-function StyledBadge({ label, color }) {
+function StyledBadge({ label, color, className = '' }) {
   return (
     <Badge
       variant="outline"
@@ -37,7 +32,7 @@ function StyledBadge({ label, color }) {
         color,
         borderColor: color,
       }}
-      className="font-medium"
+      className={`font-medium ${className}`.trim()}
     >
       {label}
     </Badge>
@@ -45,8 +40,24 @@ function StyledBadge({ label, color }) {
 }
 
 export function JobStatusBadge({ status }) {
-  const cfg = defaultJobStatuses[status] || { label: status, color: '#64748b' };
+  const normalized = String(status || '').toLowerCase().trim();
+  if (!normalized) return null;
+  const cfg = getStatusPresentation(normalized);
   return <StyledBadge label={cfg.label} color={cfg.color} />;
+}
+
+export function NextActionBadge({ status }) {
+  const action = getNextAction(status);
+  if (!action) return null;
+
+  const color =
+    action.tone === 'warning'
+      ? '#d97706'
+      : action.tone === 'info'
+      ? '#0284c7'
+      : '#6366f1';
+
+  return <StyledBadge label={`פעולה הבאה: ${action.label}`} color={color} className="text-[11px]" />;
 }
 
 export function PriorityBadge({ priority }) {
@@ -66,8 +77,8 @@ export function ClientTypeBadge({ type }) {
   const cfg =
     type === 'company'
       ? { label: 'חברה', color: '#6366f1' }
-      : type === 'customer_service'
-      ? { label: 'שירות לקוחות', color: '#a855f7' }
+      : type === 'bath_company'
+      ? { label: 'חברת אמבטיות', color: '#0d9488' }
       : { label: 'פרטי', color: '#14b8a6' };
 
   return <StyledBadge label={cfg.label} color={cfg.color} />;

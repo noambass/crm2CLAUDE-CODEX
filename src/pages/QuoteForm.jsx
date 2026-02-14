@@ -1,17 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { ArrowRight, Loader2, Plus, Save, Search, Trash2 } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { useQueryClient } from '@tanstack/react-query';
+import { geocodeAddress } from '@/data/mapRepo';
+import { getQuote, saveDraftQuote } from '@/data/quotesRepo';
 import {
-  ArrowRight, Loader2, Plus, Save, Search, Trash2,
-} from 'lucide-react';
+  isStrictIsraeliAddressFormat,
+  isUsableJobCoords,
+  normalizeAddressText,
+  parseCoord,
+} from '@/lib/geo/coordsPolicy';
+import { buildTenMinuteTimeOptions, isTenMinuteSlot, toTenMinuteSlot } from '@/lib/time/timeSlots';
+import { calculateGross, calculateVAT } from '@/utils/vat';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import GooglePlacesInput from '@/components/shared/GooglePlacesInput';
 import {
   Command,
   CommandEmpty,
@@ -26,20 +35,35 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import CreateNewClientDialog from '@/components/job/CreateNewClientDialog';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
-import { getQuote, saveDraftQuote } from '@/data/quotesRepo';
 
 const EMPTY_LINE_ITEM = () => ({
   id: crypto.randomUUID(),
-  description: '',
+  description: 'שירות',
   quantity: 1,
   unit_price: 0,
 });
 
-function asNumber(value) {
+const CLIENT_TYPE_LABELS = {
+  private: 'פרטי',
+  company: 'חברה',
+  bath_company: 'חברת אמבטיות',
+};
+
+const TIME_OPTIONS_10_MIN = buildTenMinuteTimeOptions();
+
+function toNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMoney(value) {
+  return Number(value || 0).toLocaleString('he-IL', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 export default function QuoteForm() {
@@ -56,105 +80,207 @@ export default function QuoteForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState([]);
+  const [accountAddresses, setAccountAddresses] = useState({});
   const [accountPopoverOpen, setAccountPopoverOpen] = useState(false);
+  const [createClientDialogOpen, setCreateClientDialogOpen] = useState(false);
   const [errors, setErrors] = useState({});
+  const [quoteCoordinates, setQuoteCoordinates] = useState({ lat: null, lng: null });
+  const [addressEditedManually, setAddressEditedManually] = useState(false);
 
   const [formData, setFormData] = useState({
     account_id: preselectedAccountId,
     account_name: '',
+    title: '',
+    description: '',
+    address_text: '',
+    arrival_notes: '',
+    scheduled_date: '',
+    scheduled_time: '',
     notes: '',
   });
   const [lineItems, setLineItems] = useState([EMPTY_LINE_ITEM()]);
 
   useEffect(() => {
     if (!user) return;
-    void loadData();
-  }, [user, quoteId]);
 
-  async function loadData() {
-    if (!user) return;
-    setLoading(true);
+    let mounted = true;
 
-    try {
-      const { data: accountsData, error: accountsError } = await supabase
-        .from('accounts')
-        .select('id, account_name')
-        .order('created_at', { ascending: false });
-      if (accountsError) throw accountsError;
+    async function loadData() {
+      if (!user) return;
+      setLoading(true);
 
-      const allAccounts = accountsData || [];
-      setAccounts(allAccounts);
+      try {
+        const [accountsRes, contactsRes, quoteRes] = await Promise.all([
+          supabase.from('accounts').select('id, account_name, client_type').order('created_at', { ascending: false }),
+          supabase.from('contacts').select('account_id, address_text, is_primary, created_at').order('created_at', { ascending: true }),
+          isEditing && quoteId
+            ? getQuote(quoteId).then((data) => ({ data, error: null })).catch((error) => ({ data: null, error }))
+            : Promise.resolve({ data: null, error: null }),
+        ]);
 
-      if (isEditing && quoteId) {
-        const quoteData = await getQuote(quoteId);
+        if (accountsRes.error) throw accountsRes.error;
+        if (contactsRes.error) throw contactsRes.error;
+        if (quoteRes.error) throw quoteRes.error;
 
-        if (quoteData.status !== 'draft') {
-          toast.error('ניתן לערוך רק הצעות במצב טיוטה');
-          navigate(createPageUrl(`QuoteDetails?id=${quoteId}`));
-          return;
-        }
+        const allAccounts = accountsRes.data || [];
+        setAccounts(allAccounts);
 
-        if (quoteData.converted_job_id) {
-          toast.error('לא ניתן לערוך הצעה שהומרה לעבודה');
-          navigate(createPageUrl(`QuoteDetails?id=${quoteId}`));
-          return;
-        }
-
-        const relatedAccount = Array.isArray(quoteData.accounts)
-          ? quoteData.accounts[0]
-          : quoteData.accounts;
-        const accountName = relatedAccount?.account_name
-          || allAccounts.find((account) => account.id === quoteData.account_id)?.account_name
-          || '';
-
-        setFormData({
-          account_id: quoteData.account_id || '',
-          account_name: accountName,
-          notes: quoteData.notes || '',
+        const nextAccountAddresses = {};
+        (contactsRes.data || []).forEach((contact) => {
+          if (!contact.account_id || !contact.address_text) return;
+          if (!nextAccountAddresses[contact.account_id] || contact.is_primary) {
+            nextAccountAddresses[contact.account_id] = contact.address_text;
+          }
         });
+        setAccountAddresses(nextAccountAddresses);
 
-        const items = Array.isArray(quoteData.quote_items) && quoteData.quote_items.length > 0
-          ? quoteData.quote_items.map((item) => ({
-            id: item.id || crypto.randomUUID(),
-            description: item.description || '',
-            quantity: asNumber(item.quantity) || 1,
-            unit_price: asNumber(item.unit_price),
-          }))
-          : [EMPTY_LINE_ITEM()];
+        if (isEditing && quoteId && quoteRes.data) {
+          const quoteData = quoteRes.data;
 
-        setLineItems(items);
-        return;
-      }
+          if (quoteData.status !== 'draft') {
+            toast.error('ניתן לערוך רק הצעות במצב טיוטה');
+            navigate(createPageUrl(`QuoteDetails?id=${quoteId}`));
+            return;
+          }
 
-      if (preselectedAccountId) {
-        const preselected = allAccounts.find((account) => account.id === preselectedAccountId);
-        if (preselected) {
+          if (quoteData.converted_job_id) {
+            toast.error('לא ניתן לערוך הצעה שהומרה לעבודה');
+            navigate(createPageUrl(`QuoteDetails?id=${quoteId}`));
+            return;
+          }
+
+          const relatedAccount = Array.isArray(quoteData.accounts) ? quoteData.accounts[0] : quoteData.accounts;
+          const accountName = relatedAccount?.account_name
+            || allAccounts.find((account) => account.id === quoteData.account_id)?.account_name
+            || '';
+
+          const scheduledDate = quoteData.scheduled_start_at ? new Date(quoteData.scheduled_start_at) : null;
+          const fallbackTitle = String(quoteData.title || '').trim()
+            || (Array.isArray(quoteData.quote_items) && quoteData.quote_items[0]?.description)
+            || 'הצעת מחיר';
+
           setFormData((prev) => ({
             ...prev,
-            account_id: preselected.id,
-            account_name: preselected.account_name || '',
+            account_id: quoteData.account_id || '',
+            account_name: accountName,
+            title: fallbackTitle,
+            description: quoteData.description || '',
+            address_text: quoteData.address_text || '',
+            arrival_notes: quoteData.arrival_notes || '',
+            scheduled_date: scheduledDate ? scheduledDate.toISOString().slice(0, 10) : '',
+            scheduled_time: scheduledDate ? toTenMinuteSlot(scheduledDate.toISOString().slice(11, 16)) : '',
+            notes: quoteData.notes || '',
           }));
+
+          const parsedLat = parseCoord(quoteData.lat);
+          const parsedLng = parseCoord(quoteData.lng);
+          setQuoteCoordinates({
+            lat: isUsableJobCoords(parsedLat, parsedLng) ? parsedLat : null,
+            lng: isUsableJobCoords(parsedLat, parsedLng) ? parsedLng : null,
+          });
+          setAddressEditedManually(false);
+
+          const items = Array.isArray(quoteData.quote_items) && quoteData.quote_items.length > 0
+            ? quoteData.quote_items.map((item) => ({
+              id: item.id || crypto.randomUUID(),
+              description: item.description || 'שירות',
+              quantity: toNumber(item.quantity) || 1,
+              unit_price: toNumber(item.unit_price),
+            }))
+            : [EMPTY_LINE_ITEM()];
+
+          setLineItems(items);
+          return;
         }
+
+        if (preselectedAccountId) {
+          const selected = allAccounts.find((account) => account.id === preselectedAccountId);
+          if (selected) {
+            setFormData((prev) => ({
+              ...prev,
+              account_id: selected.id,
+              account_name: selected.account_name || '',
+              address_text: prev.address_text || nextAccountAddresses[selected.id] || '',
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading quote form data:', error);
+        toast.error('שגיאה בטעינת נתונים', {
+          description: getDetailedErrorReason(error, 'טעינת נתוני הצעת המחיר נכשלה.'),
+          duration: 7000,
+        });
+      } finally {
+        if (mounted) setLoading(false);
       }
-    } catch (error) {
-      console.error('Error loading quote form data:', error);
-      toast.error('שגיאה בטעינת נתונים', {
-        description: getDetailedErrorReason(error, 'טעינת נתוני הצעת המחיר נכשלה.'),
-        duration: 7000,
-      });
-    } finally {
-      setLoading(false);
+    }
+
+    loadData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user, quoteId, isEditing, preselectedAccountId, navigate]);
+
+  function handleAddressTextChange(addressText, { isManual }) {
+    setFormData((prev) => ({ ...prev, address_text: addressText }));
+    if (isManual) {
+      setAddressEditedManually(true);
+      setQuoteCoordinates({ lat: null, lng: null });
     }
   }
 
+  function handleAddressPlaceSelected({ addressText, lat, lng }) {
+    setFormData((prev) => ({ ...prev, address_text: addressText || prev.address_text }));
+    setAddressEditedManually(false);
+    const parsedLat = parseCoord(lat);
+    const parsedLng = parseCoord(lng);
+    setQuoteCoordinates({
+      lat: isUsableJobCoords(parsedLat, parsedLng) ? parsedLat : null,
+      lng: isUsableJobCoords(parsedLat, parsedLng) ? parsedLng : null,
+    });
+  }
+
   function handleAccountSelect(account) {
+    const suggestedAddress = accountAddresses[account.id] || '';
+    const shouldAutofillAddress = !formData.address_text || !addressEditedManually;
+
     setFormData((prev) => ({
       ...prev,
       account_id: account.id,
       account_name: account.account_name || '',
+      address_text: shouldAutofillAddress ? suggestedAddress : prev.address_text,
     }));
+
+    if (shouldAutofillAddress) {
+      setQuoteCoordinates({ lat: null, lng: null });
+      setAddressEditedManually(false);
+    }
+
     setErrors((prev) => ({ ...prev, account_id: null }));
     setAccountPopoverOpen(false);
+  }
+
+  function handleClientCreated(newAccount) {
+    const suggestedAddress = newAccount.primary_contact?.address_text || '';
+    const shouldAutofillAddress = !formData.address_text || !addressEditedManually;
+
+    setAccounts((prev) => [newAccount, ...prev]);
+    setAccountAddresses((prev) => ({ ...prev, [newAccount.id]: suggestedAddress }));
+    setFormData((prev) => ({
+      ...prev,
+      account_id: newAccount.id,
+      account_name: newAccount.account_name,
+      address_text: shouldAutofillAddress ? suggestedAddress : prev.address_text,
+    }));
+
+    if (shouldAutofillAddress) {
+      setQuoteCoordinates({ lat: null, lng: null });
+      setAddressEditedManually(false);
+    }
+
+    setErrors((prev) => ({ ...prev, account_id: null }));
+    setCreateClientDialogOpen(false);
   }
 
   function updateLineItem(id, field, value) {
@@ -173,22 +299,26 @@ export default function QuoteForm() {
     setLineItems((prev) => prev.filter((item) => item.id !== id));
   }
 
-  function getLineTotal(item) {
-    return asNumber(item.quantity) * asNumber(item.unit_price);
-  }
-
   const subtotal = useMemo(
-    () => lineItems.reduce((sum, item) => sum + getLineTotal(item), 0),
+    () => lineItems.reduce((sum, item) => sum + (toNumber(item.quantity) * toNumber(item.unit_price)), 0),
     [lineItems],
   );
-  const vatAmount = subtotal * 0.18;
-  const totalWithVat = subtotal + vatAmount;
+  const vatAmount = calculateVAT(subtotal);
+  const totalWithVat = calculateGross(subtotal);
 
   function validate() {
     const nextErrors = {};
 
-    if (!formData.account_id) {
-      nextErrors.account_id = 'חובה לבחור לקוח';
+    if (!formData.account_id) nextErrors.account_id = 'חובה לבחור לקוח';
+    if (!formData.title.trim()) nextErrors.title = 'כותרת הצעה היא שדה חובה';
+
+    const normalizedAddress = normalizeAddressText(formData.address_text);
+    if (normalizedAddress && !isStrictIsraeliAddressFormat(normalizedAddress)) {
+      nextErrors.address_text = 'יש להזין כתובת בפורמט: רחוב ומספר, עיר';
+    }
+
+    if (formData.scheduled_time && !isTenMinuteSlot(formData.scheduled_time)) {
+      nextErrors.scheduled_time = 'יש לבחור שעה בקפיצות של 10 דקות';
     }
 
     const lineErrors = [];
@@ -202,12 +332,12 @@ export default function QuoteForm() {
         hasLineError = true;
       }
 
-      if (asNumber(item.quantity) <= 0) {
+      if (toNumber(item.quantity) <= 0) {
         itemErrors.quantity = 'כמות חייבת להיות גדולה מ-0';
         hasLineError = true;
       }
 
-      if (asNumber(item.unit_price) < 0) {
+      if (toNumber(item.unit_price) < 0) {
         itemErrors.unit_price = 'מחיר לא יכול להיות שלילי';
         hasLineError = true;
       }
@@ -215,9 +345,7 @@ export default function QuoteForm() {
       lineErrors[index] = itemErrors;
     });
 
-    if (hasLineError) {
-      nextErrors.lineItems = lineErrors;
-    }
+    if (hasLineError) nextErrors.lineItems = lineErrors;
 
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
@@ -230,24 +358,79 @@ export default function QuoteForm() {
 
     setSaving(true);
     try {
+      const normalizedAddress = normalizeAddressText(formData.address_text);
+      const hasAddress = Boolean(normalizedAddress);
+
+      let nextLat = parseCoord(quoteCoordinates.lat);
+      let nextLng = parseCoord(quoteCoordinates.lng);
+      let shouldWarnMissingCoords = false;
+
+      if (!hasAddress) {
+        nextLat = null;
+        nextLng = null;
+      } else if (!isUsableJobCoords(nextLat, nextLng)) {
+        try {
+          const geo = await geocodeAddress(normalizedAddress);
+          const parsedLat = parseCoord(geo?.lat);
+          const parsedLng = parseCoord(geo?.lng);
+          if (isUsableJobCoords(parsedLat, parsedLng)) {
+            nextLat = parsedLat;
+            nextLng = parsedLng;
+          } else {
+            nextLat = null;
+            nextLng = null;
+            shouldWarnMissingCoords = true;
+          }
+        } catch {
+          nextLat = null;
+          nextLng = null;
+          shouldWarnMissingCoords = true;
+        }
+      }
+
+      setQuoteCoordinates({
+        lat: isUsableJobCoords(nextLat, nextLng) ? nextLat : null,
+        lng: isUsableJobCoords(nextLat, nextLng) ? nextLng : null,
+      });
+
+      if (shouldWarnMissingCoords) {
+        toast.warning('לא הצלחנו לאתר מיקום מדויק. ההצעה תישמר ללא קואורדינטות.');
+      }
+
+      const scheduledStartAt =
+        formData.scheduled_date && formData.scheduled_time
+          ? new Date(`${formData.scheduled_date}T${formData.scheduled_time}`).toISOString()
+          : null;
+
       const quoteSavedId = await saveDraftQuote({
         quoteId: isEditing ? quoteId : undefined,
         accountId: formData.account_id,
+        title: formData.title,
+        description: formData.description,
         notes: formData.notes,
+        addressText: normalizedAddress,
+        arrivalNotes: formData.arrival_notes,
+        lat: isUsableJobCoords(nextLat, nextLng) ? nextLat : null,
+        lng: isUsableJobCoords(nextLat, nextLng) ? nextLng : null,
+        scheduledStartAt,
         items: lineItems.map((item) => ({
           description: item.description.trim(),
-          quantity: asNumber(item.quantity),
-          unitPrice: asNumber(item.unit_price),
+          quantity: Math.max(1, toNumber(item.quantity)),
+          unitPrice: Math.max(0, toNumber(item.unit_price)),
         })),
       });
 
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
       toast.success('הצעת המחיר נשמרה בהצלחה');
       navigate(createPageUrl(`QuoteDetails?id=${quoteSavedId}`));
     } catch (error) {
       console.error('Error saving quote:', error);
+      const migrationMissing = error?.code === '42703';
       toast.error('שגיאה בשמירת הצעת המחיר', {
-        description: getDetailedErrorReason(error, 'שמירת הצעת המחיר נכשלה.'),
+        description: migrationMissing
+          ? 'נדרש עדכון DB לשדות החדשים של הצעת מחיר. הרץ את המיגרציה האחרונה ונסה שוב.'
+          : getDetailedErrorReason(error, 'שמירת הצעת המחיר נכשלה.'),
         duration: 9000,
       });
     } finally {
@@ -260,30 +443,24 @@ export default function QuoteForm() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div dir="rtl" className="mx-auto max-w-3xl p-4 lg:p-8">
+    <div dir="rtl" className="mx-auto max-w-3xl space-y-6 p-4 lg:p-8">
       <div className="mb-8 flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(-1)}
-          className="rounded-full"
-        >
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
           <ArrowRight className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">
-            {isEditing ? 'עריכת טיוטת הצעה' : 'הצעת מחיר חדשה'}
-          </h1>
-          <p className="mt-1 text-slate-500">
-            {isEditing ? 'עדכן את פרטי ההצעה' : 'צור הצעת מחיר חדשה'}
-          </p>
+          <h1 className="text-2xl font-bold text-slate-800">{isEditing ? 'עריכת טיוטת הצעה' : 'הצעת מחיר חדשה'}</h1>
+          <p className="mt-1 text-slate-500">ניהול הצעת מחיר במבנה דומה לעבודה חדשה</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="border-0 shadow-sm">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">לקוח *</CardTitle>
+            <Button type="button" variant="outline" size="sm" onClick={() => setCreateClientDialogOpen(true)}>
+              + לקוח חדש
+            </Button>
           </CardHeader>
           <CardContent>
             <Popover open={accountPopoverOpen} onOpenChange={setAccountPopoverOpen}>
@@ -294,13 +471,7 @@ export default function QuoteForm() {
                   role="combobox"
                   className={`h-auto w-full justify-between py-3 ${errors.account_id ? 'border-red-500' : ''}`}
                 >
-                  {formData.account_name ? (
-                    <div className="text-right">
-                      <p className="font-medium">{formData.account_name}</p>
-                    </div>
-                  ) : (
-                    <span className="text-slate-500">בחר לקוח...</span>
-                  )}
+                  {formData.account_name ? <span>{formData.account_name}</span> : <span className="text-slate-500">בחר לקוח...</span>}
                   <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -311,12 +482,11 @@ export default function QuoteForm() {
                     <CommandEmpty>לא נמצאו לקוחות</CommandEmpty>
                     <CommandGroup>
                       {accounts.map((account) => (
-                        <CommandItem
-                          key={account.id}
-                          onSelect={() => handleAccountSelect(account)}
-                          className="cursor-pointer"
-                        >
-                          <p className="font-medium">{account.account_name}</p>
+                        <CommandItem key={account.id} onSelect={() => handleAccountSelect(account)} className="cursor-pointer">
+                          <div className="flex w-full items-center justify-between gap-2">
+                            <span className="font-medium">{account.account_name}</span>
+                            <span className="text-xs text-slate-500">{CLIENT_TYPE_LABELS[account.client_type] || 'פרטי'}</span>
+                          </div>
                         </CommandItem>
                       ))}
                     </CommandGroup>
@@ -325,24 +495,109 @@ export default function QuoteForm() {
               </PopoverContent>
             </Popover>
 
-            {errors.account_id ? (
-              <p className="mt-1 text-sm text-red-600">{errors.account_id}</p>
-            ) : null}
+            {errors.account_id ? <p className="mt-1 text-sm text-red-600">{errors.account_id}</p> : null}
+          </CardContent>
+        </Card>
+
+        <CreateNewClientDialog
+          open={createClientDialogOpen}
+          onOpenChange={setCreateClientDialogOpen}
+          onClientCreated={handleClientCreated}
+        />
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">פרטי הצעה</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>כותרת *</Label>
+              <Input
+                data-testid="quote-title"
+                value={formData.title}
+                onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                className={errors.title ? 'border-red-500' : ''}
+              />
+              {errors.title ? <p className="text-xs text-red-600">{errors.title}</p> : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label>תיאור</Label>
+              <Textarea
+                data-testid="quote-description"
+                value={formData.description}
+                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                rows={3}
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>תאריך</Label>
+                <Input
+                  type="date"
+                  value={formData.scheduled_date}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, scheduled_date: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>שעה</Label>
+                <select
+                  data-testid="quote-scheduled-time"
+                  value={formData.scheduled_time}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, scheduled_time: e.target.value }))}
+                  className={`w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ${errors.scheduled_time ? 'border-red-500' : ''}`}
+                >
+                  <option value="">בחר שעה...</option>
+                  {TIME_OPTIONS_10_MIN.map((time) => (
+                    <option key={time} value={time}>{time}</option>
+                  ))}
+                </select>
+                {errors.scheduled_time ? <p className="text-xs text-red-600">{errors.scheduled_time}</p> : null}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>הערות להצעה</Label>
+              <Textarea
+                data-testid="quote-notes"
+                value={formData.notes}
+                onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder="הערות כלליות להצעת המחיר..."
+                rows={3}
+              />
+            </div>
           </CardContent>
         </Card>
 
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">הערות להצעה</CardTitle>
+            <CardTitle className="text-lg">מיקום</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Textarea
-              data-testid="quote-notes"
-              value={formData.notes}
-              onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-              placeholder="הערות כלליות להצעת המחיר..."
-              rows={3}
-            />
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>כתובת</Label>
+              <GooglePlacesInput
+                data-testid="quote-address"
+                value={formData.address_text}
+                onChangeText={(text) => handleAddressTextChange(text, { isManual: true })}
+                onPlaceSelected={handleAddressPlaceSelected}
+                placeholder="הרצל 10, אשדוד"
+                className={errors.address_text ? 'border-red-500' : ''}
+              />
+              <p className="text-xs text-slate-500">פורמט חובה: רחוב ומספר, עיר. לדוגמה: הרצל 10, אשדוד</p>
+              {errors.address_text ? <p className="text-xs text-red-600">{errors.address_text}</p> : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label>הערות הגעה</Label>
+              <Textarea
+                data-testid="quote-arrival-notes"
+                value={formData.arrival_notes}
+                onChange={(e) => setFormData((prev) => ({ ...prev, arrival_notes: e.target.value }))}
+                rows={2}
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -357,8 +612,14 @@ export default function QuoteForm() {
           <CardContent className="space-y-4">
             {lineItems.map((item, index) => {
               const lineErrors = errors.lineItems?.[index] || {};
+              const quantity = Math.max(1, toNumber(item.quantity));
+              const unitPrice = Math.max(0, toNumber(item.unit_price));
+              const lineTotal = quantity * unitPrice;
+              const unitWithVat = calculateGross(unitPrice);
+              const lineWithVat = calculateGross(lineTotal);
+
               return (
-                <div key={item.id} className="relative space-y-3 rounded-xl bg-slate-50 p-4">
+                <div key={item.id} className="space-y-3 rounded-xl bg-slate-50 p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-slate-500">שורה {index + 1}</span>
                     <Button
@@ -381,12 +642,10 @@ export default function QuoteForm() {
                       placeholder="תיאור השירות"
                       className={lineErrors.description ? 'border-red-500' : ''}
                     />
-                    {lineErrors.description ? (
-                      <p className="text-xs text-red-600">{lineErrors.description}</p>
-                    ) : null}
+                    {lineErrors.description ? <p className="text-xs text-red-600">{lineErrors.description}</p> : null}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>כמות</Label>
                       <Input
@@ -399,13 +658,11 @@ export default function QuoteForm() {
                         className={lineErrors.quantity ? 'border-red-500' : ''}
                         dir="ltr"
                       />
-                      {lineErrors.quantity ? (
-                        <p className="text-xs text-red-600">{lineErrors.quantity}</p>
-                      ) : null}
+                      {lineErrors.quantity ? <p className="text-xs text-red-600">{lineErrors.quantity}</p> : null}
                     </div>
 
                     <div className="space-y-2">
-                      <Label>מחיר יחידה</Label>
+                      <Label>מחיר יחידה (לפני מע"מ)</Label>
                       <Input
                         data-testid={`quote-line-unit-price-${index}`}
                         type="number"
@@ -416,16 +673,18 @@ export default function QuoteForm() {
                         className={lineErrors.unit_price ? 'border-red-500' : ''}
                         dir="ltr"
                       />
-                      {lineErrors.unit_price ? (
-                        <p className="text-xs text-red-600">{lineErrors.unit_price}</p>
-                      ) : null}
+                      {lineErrors.unit_price ? <p className="text-xs text-red-600">{lineErrors.unit_price}</p> : null}
                     </div>
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label>סה"כ שורה</Label>
-                      <div className="flex h-10 items-center rounded-md border bg-white px-3 font-medium text-slate-700" dir="ltr">
-                        ₪{getLineTotal(item).toFixed(2)}
-                      </div>
+                  <div className="grid gap-2 rounded-lg bg-white p-3 text-sm text-slate-600 sm:grid-cols-2" dir="ltr">
+                    <div className="flex items-center justify-between">
+                      <span>יחידה כולל מע"מ:</span>
+                      <span className="font-medium text-slate-800">₪{formatMoney(unitWithVat)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>סה"כ שורה כולל מע"מ:</span>
+                      <span className="font-medium text-slate-800">₪{formatMoney(lineWithVat)}</span>
                     </div>
                   </div>
                 </div>
@@ -434,22 +693,16 @@ export default function QuoteForm() {
 
             <div className="space-y-3 rounded-xl bg-slate-800 p-4 text-white">
               <div className="flex items-center justify-between">
-                <span className="text-sm">סכום לפני מע"מ:</span>
-                <span data-testid="quote-total" className="font-medium" dir="ltr">
-                  ₪{subtotal.toFixed(2)}
-                </span>
+                <span>סה"כ לפני מע"מ</span>
+                <span data-testid="quote-total" dir="ltr">₪{formatMoney(subtotal)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm">מע"מ (18%):</span>
-                <span className="font-medium" dir="ltr">
-                  ₪{vatAmount.toFixed(2)}
-                </span>
+                <span>מע"מ (18%)</span>
+                <span dir="ltr">₪{formatMoney(vatAmount)}</span>
               </div>
-              <div className="flex items-center justify-between border-t border-white/20 pt-3">
-                <span className="text-lg font-bold">סה"כ הצעה:</span>
-                <span className="text-2xl font-bold" dir="ltr">
-                  ₪{totalWithVat.toFixed(2)}
-                </span>
+              <div className="flex items-center justify-between border-t border-white/20 pt-3 text-lg font-bold">
+                <span>סה"כ כולל מע"מ</span>
+                <span dir="ltr">₪{formatMoney(totalWithVat)}</span>
               </div>
             </div>
           </CardContent>

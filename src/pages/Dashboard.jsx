@@ -17,7 +17,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { JobStatusBadge, PriorityBadge } from '@/components/ui/DynamicStatusBadge';
+import { JobStatusBadge, PriorityBadge, QuoteStatusBadge } from '@/components/ui/DynamicStatusBadge';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import WeeklyCalendar from '@/components/dashboard/WeeklyCalendar';
 
@@ -32,6 +32,11 @@ function getJobSubtotal(job) {
 
 function accountNameOf(job) {
   const relation = Array.isArray(job?.accounts) ? job.accounts[0] : job?.accounts;
+  return relation?.account_name || 'ללא לקוח';
+}
+
+function accountNameOfQuote(quote) {
+  const relation = Array.isArray(quote?.accounts) ? quote.accounts[0] : quote?.accounts;
   return relation?.account_name || 'ללא לקוח';
 }
 
@@ -50,6 +55,7 @@ export default function Dashboard() {
   const [recentJobs, setRecentJobs] = useState([]);
   const [todayJobs, setTodayJobs] = useState([]);
   const [unscheduledJobs, setUnscheduledJobs] = useState([]);
+  const [unconvertedQuotes, setUnconvertedQuotes] = useState([]);
   const [interestedAccounts, setInterestedAccounts] = useState([]);
 
   useEffect(() => {
@@ -68,7 +74,11 @@ export default function Dashboard() {
             )
             .order('created_at', { ascending: false })
             .limit(200),
-          supabase.from('quotes').select('id, status'),
+          supabase
+            .from('quotes')
+            .select('id, account_id, status, title, total, created_at, converted_job_id, accounts(account_name)')
+            .order('created_at', { ascending: false })
+            .limit(200),
         ]);
 
         if (accountsRes.error) throw accountsRes.error;
@@ -79,7 +89,8 @@ export default function Dashboard() {
         const jobs = jobsRes.data || [];
         const quotes = quotesRes.data || [];
 
-        const openQuotesCount = quotes.filter((q) => ['draft', 'sent', 'approved'].includes(q.status)).length;
+        const openQuotesCount = quotes.filter((q) => ['draft', 'sent', 'approved'].includes(q.status) && !q.converted_job_id).length;
+        const unconvertedQuotesList = quotes.filter((q) => !q.converted_job_id).slice(0, 6);
         const pendingJobs = jobs.filter((job) => job.status !== 'done');
         const doneJobs = jobs.filter((job) => job.status === 'done');
 
@@ -117,6 +128,7 @@ export default function Dashboard() {
         setRecentJobs(jobs.slice(0, 5));
         setTodayJobs(todayJobsList);
         setUnscheduledJobs(unscheduledJobsList.slice(0, 5));
+        setUnconvertedQuotes(unconvertedQuotesList);
         setInterestedAccounts(interested);
       } catch (error) {
         console.error('Error loading dashboard:', error);
@@ -259,6 +271,43 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-0 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <FileText className="h-5 w-5 text-violet-600" />
+            הצעות מחיר שטרם הומרו לעבודה
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {unconvertedQuotes.length === 0 ? (
+            <p className="text-sm text-slate-500">אין כרגע הצעות ממתינות להמרה.</p>
+          ) : (
+            unconvertedQuotes.map((quote) => (
+              <button
+                key={quote.id}
+                type="button"
+                onClick={() => navigate(createPageUrl(`QuoteDetails?id=${quote.id}`))}
+                className="w-full rounded-lg bg-slate-50 p-3 text-right hover:bg-slate-100"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-slate-800">{quote.title || 'הצעת מחיר'}</div>
+                    <div className="text-sm text-slate-500">{accountNameOfQuote(quote)}</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      נוצרה: {format(new Date(quote.created_at), 'dd/MM/yyyy')}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <QuoteStatusBadge status={quote.status} />
+                    <div className="text-xs font-semibold text-slate-700">₪{Number(quote.total || 0).toFixed(2)}</div>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="border-0 shadow-sm">

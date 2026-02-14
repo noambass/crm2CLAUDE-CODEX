@@ -38,10 +38,23 @@ export async function saveDraftQuote(input) {
     throw new Error('חובה להוסיף לפחות שורה אחת להצעה');
   }
 
+  const normalizedTitle = String(input.title || '').trim();
+  const normalizedDescription = String(input.description || '').trim();
+  const normalizedAddress = String(input.addressText || '').trim();
+  const normalizedArrivalNotes = String(input.arrivalNotes || '').trim();
+  const normalizedNotes = String(input.notes || '').trim();
+
   const quotePayload = {
     account_id: input.accountId,
     status: 'draft',
-    notes: input.notes || null,
+    title: normalizedTitle || null,
+    description: normalizedDescription || null,
+    notes: normalizedNotes || null,
+    address_text: normalizedAddress || null,
+    arrival_notes: normalizedArrivalNotes || null,
+    lat: input.lat ?? null,
+    lng: input.lng ?? null,
+    scheduled_start_at: input.scheduledStartAt || null,
   };
 
   let quoteId = input.quoteId;

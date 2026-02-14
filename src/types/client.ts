@@ -14,6 +14,7 @@ export interface Contact {
 export interface Account {
   id: string;
   account_name: string;
+  client_type: 'private' | 'company' | 'bath_company';
   status: 'lead' | 'active' | 'inactive';
   notes: string | null;
   created_at: string;

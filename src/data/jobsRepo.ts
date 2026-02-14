@@ -23,7 +23,6 @@ export async function createManualJob(input) {
   const lineItems = Array.isArray(input.lineItems) ? input.lineItems : [];
   const payload = {
     account_id: input.accountId,
-    assigned_to: input.assignedTo || 'owner',
     title: input.title,
     description: input.description || null,
     status: input.status || 'waiting_schedule',

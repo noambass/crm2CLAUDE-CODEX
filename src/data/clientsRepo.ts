@@ -78,6 +78,7 @@ export async function createClient(input) {
       account_name: accountName,
       notes: input.internalNotes || null,
       status: input.status || 'active',
+      client_type: input.clientType || 'private',
     }])
     .select('*')
     .single();
@@ -91,7 +92,6 @@ export async function createClient(input) {
       phone: input.phone || null,
       email: input.email || null,
       address_text: input.addressText || null,
-      notes: input.contactNotes || null,
       is_primary: true,
     }])
     .select('*')
@@ -109,6 +109,7 @@ export async function updateClient(accountId, input) {
       account_name: fullName,
       notes: input.internalNotes || null,
       status: input.status || 'active',
+      client_type: input.clientType || 'private',
     })
     .eq('id', accountId);
   if (accountError) throw accountError;
@@ -130,7 +131,6 @@ export async function updateClient(accountId, input) {
         phone: input.phone || null,
         email: input.email || null,
         address_text: input.addressText || null,
-        notes: input.contactNotes || null,
       })
       .eq('id', primary.id);
     if (primaryUpdateError) throw primaryUpdateError;
@@ -143,7 +143,6 @@ export async function updateClient(accountId, input) {
         phone: input.phone || null,
         email: input.email || null,
         address_text: input.addressText || null,
-        notes: input.contactNotes || null,
         is_primary: true,
       }]);
     if (primaryInsertError) throw primaryInsertError;
@@ -172,3 +171,4 @@ export async function findClientByPhone(phone) {
   const match = (data || []).find((c) => String(c.phone || '').replace(/\D/g, '') === normalized);
   return match || null;
 }
+

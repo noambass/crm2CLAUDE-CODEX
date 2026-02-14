@@ -37,6 +37,8 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --crm-primary: #00214d;
+    --crm-accent: #0d9488;
   }
 
   .dark {
@@ -72,6 +74,8 @@
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --crm-primary: #12325f;
+    --crm-accent: #14b8a6;
   }
 }
 
@@ -84,5 +88,50 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .crm-primary-bg {
+    background-color: var(--crm-primary);
+  }
+
+  .crm-accent-text {
+    color: var(--crm-accent);
+  }
+
+  .dark .bg-white {
+    background-color: rgb(15 23 42) !important;
+  }
+
+  .dark .bg-slate-50 {
+    background-color: rgb(15 23 42 / 0.6) !important;
+  }
+
+  .dark .bg-slate-100 {
+    background-color: rgb(30 41 59 / 0.7) !important;
+  }
+
+  .dark .text-slate-800,
+  .dark .text-slate-700,
+  .dark .text-slate-600 {
+    color: rgb(226 232 240) !important;
+  }
+
+  .dark .text-slate-500,
+  .dark .text-slate-400 {
+    color: rgb(148 163 184) !important;
+  }
+
+  .dark .border-slate-200 {
+    border-color: rgb(51 65 85) !important;
+  }
+
+  .dark input,
+  .dark select,
+  .dark textarea {
+    color: rgb(226 232 240);
+    border-color: rgb(51 65 85);
+    background-color: rgb(15 23 42);
   }
 }

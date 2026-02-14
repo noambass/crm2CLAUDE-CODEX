@@ -4,6 +4,8 @@ import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import {
   ArrowRight,
+  ChevronDown,
+  ChevronUp,
   Edit,
   FileText,
   Loader2,
@@ -18,10 +20,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import EmptyState from '@/components/shared/EmptyState';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
+import { QUOTE_ALLOWED_TRANSITIONS } from '@/lib/workflow/statusPolicy';
 
 const QUOTE_STATUSES = [
   { value: 'draft', label: 'טיוטה', color: '#64748b' },
@@ -29,13 +33,30 @@ const QUOTE_STATUSES = [
   { value: 'approved', label: 'אושרה', color: '#10b981' },
   { value: 'rejected', label: 'נדחתה', color: '#ef4444' },
 ];
+const QUOTE_STATUS_ORDER = ['draft', 'sent', 'approved', 'rejected'];
 
-const QUOTE_ALLOWED_TRANSITIONS = {
-  draft: ['sent'],
-  sent: ['approved', 'rejected'],
-  approved: [],
-  rejected: ['draft'],
-};
+function findQuoteTransitionPath(fromStatus, toStatus) {
+  if (!fromStatus || !toStatus) return null;
+  if (fromStatus === toStatus) return [];
+
+  const visited = new Set([fromStatus]);
+  const queue = [{ status: fromStatus, path: [] }];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const nextStatuses = QUOTE_ALLOWED_TRANSITIONS[current.status] || [];
+
+    for (const nextStatus of nextStatuses) {
+      const nextPath = [...current.path, nextStatus];
+      if (nextStatus === toStatus) return nextPath;
+      if (visited.has(nextStatus)) continue;
+      visited.add(nextStatus);
+      queue.push({ status: nextStatus, path: nextPath });
+    }
+  }
+
+  return null;
+}
 
 export default function QuoteDetails() {
   const navigate = useNavigate();
@@ -49,6 +70,8 @@ export default function QuoteDetails() {
   const [quote, setQuote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [manualUpdating, setManualUpdating] = useState(false);
+  const [advancedStatusOpen, setAdvancedStatusOpen] = useState(false);
   const [converting, setConverting] = useState(false);
 
   useEffect(() => {
@@ -104,19 +127,28 @@ export default function QuoteDetails() {
   async function convertToJob() {
     if (!quote || !quoteId) return;
 
-    if (quote.status !== 'approved') {
-      toast.error('ניתן להמיר לעבודה רק הצעה שאושרה');
+    if (quote.converted_job_id) {
+      toast.error('הצעה זו כבר הומרה לעבודה');
       return;
     }
 
-    if (quote.converted_job_id) {
-      toast.error('הצעה זו כבר הומרה לעבודה');
+    if (quote.status === 'rejected') {
+      toast.error('לא ניתן להמיר הצעה שנדחתה לעבודה');
       return;
     }
 
     setConverting(true);
 
     try {
+      // Conversion RPC requires approved status, so approve implicitly first.
+      if (quote.status !== 'approved') {
+        const { error: approveError } = await supabase
+          .from('quotes')
+          .update({ status: 'approved' })
+          .eq('id', quoteId);
+        if (approveError) throw approveError;
+      }
+
       const { data, error } = await supabase.rpc('convert_quote_to_job', { p_quote_id: quoteId });
       if (error) throw error;
 
@@ -151,6 +183,59 @@ export default function QuoteDetails() {
     return [...fromItemsTable].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   }, [quote]);
 
+  const manualStatusOptions = useMemo(() => {
+    if (!quote || quote.converted_job_id) return [];
+    return QUOTE_STATUS_ORDER
+      .filter((status) => status !== quote.status)
+      .filter((status) => findQuoteTransitionPath(quote.status, status) !== null)
+      .map((status) => {
+        const statusCfg = QUOTE_STATUSES.find((item) => item.value === status);
+        return {
+          value: status,
+          label: statusCfg?.label || status,
+          color: statusCfg?.color || '#64748b',
+        };
+      });
+  }, [quote]);
+
+  async function updateStatusManually(targetStatus) {
+    if (!quoteId || !quote) return;
+    if (quote.converted_job_id) {
+      toast.error('לא ניתן לשנות סטטוס אחרי שהצעה הומרה לעבודה');
+      return;
+    }
+    if (targetStatus === quote.status) return;
+
+    const transitionPath = findQuoteTransitionPath(quote.status, targetStatus);
+    if (!transitionPath) {
+      toast.error('מעבר הסטטוס שבחרת אינו חוקי');
+      return;
+    }
+
+    setManualUpdating(true);
+    try {
+      for (const nextStatus of transitionPath) {
+        const { error } = await supabase
+          .from('quotes')
+          .update({ status: nextStatus })
+          .eq('id', quoteId);
+        if (error) throw error;
+      }
+
+      setQuote((prev) => (prev ? { ...prev, status: targetStatus } : prev));
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      toast.success('סטטוס ההצעה עודכן ידנית');
+    } catch (error) {
+      console.error('Error updating quote status manually:', error);
+      toast.error('שגיאה בעדכון סטטוס הצעה', {
+        description: getDetailedErrorReason(error, 'עדכון הסטטוס הידני נכשל.'),
+        duration: 9000,
+      });
+    } finally {
+      setManualUpdating(false);
+    }
+  }
+
   if (isLoadingAuth) return <LoadingSpinner />;
   if (!user) return null;
   if (loading) return <LoadingSpinner />;
@@ -166,8 +251,8 @@ export default function QuoteDetails() {
   }
 
   const canEdit = quote.status === 'draft' && !quote.converted_job_id;
-  const canConvert = quote.status === 'approved' && !quote.converted_job_id;
-  const allowedNextStatuses = QUOTE_ALLOWED_TRANSITIONS[quote.status] || [];
+  const canConvert = !quote.converted_job_id && quote.status !== 'rejected';
+  const canReject = !quote.converted_job_id && quote.status !== 'rejected';
 
   return (
     <div dir="rtl" className="mx-auto max-w-4xl space-y-6 p-4 lg:p-8">
@@ -206,30 +291,69 @@ export default function QuoteDetails() {
         </Badge>
       </div>
 
-      {allowedNextStatuses.length > 0 ? (
+      {(canReject || canConvert) ? (
         <Card className="border-0 shadow-sm">
           <CardContent className="p-4">
-            <p className="mb-3 text-sm text-slate-500">קדם סטטוס:</p>
+            <p className="mb-3 text-sm text-slate-500">פעולות סטטוס:</p>
             <div className="flex flex-wrap gap-2">
-              {allowedNextStatuses.map((nextValue) => {
-                const nextStatusCfg = QUOTE_STATUSES.find((status) => status.value === nextValue);
-                if (!nextStatusCfg) return null;
+              {canReject ? (
+                <Button
+                  data-testid="quote-status-rejected"
+                  size="sm"
+                  disabled={updating || converting}
+                  onClick={() => updateStatus('rejected')}
+                  className="bg-red-600 text-white hover:bg-red-700"
+                >
+                  סמן כנדחתה
+                </Button>
+              ) : null}
 
-                return (
-                  <Button
-                    key={nextStatusCfg.value}
-                    data-testid={`quote-status-${nextStatusCfg.value}`}
-                    size="sm"
-                    disabled={updating}
-                    onClick={() => updateStatus(nextStatusCfg.value)}
-                    style={{ backgroundColor: nextStatusCfg.color }}
-                    className="text-white hover:opacity-90"
-                  >
-                    {nextStatusCfg.label}
-                  </Button>
-                );
-              })}
+              {canConvert ? (
+                <Button
+                  data-testid="quote-convert-to-job"
+                  size="sm"
+                  onClick={convertToJob}
+                  disabled={converting || updating}
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  {converting ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Briefcase className="ml-2 h-4 w-4" />}
+                  המר לעבודה
+                </Button>
+              ) : null}
             </div>
+
+            {!quote.converted_job_id ? (
+              <Collapsible open={advancedStatusOpen} onOpenChange={setAdvancedStatusOpen} className="mt-4 border-t border-slate-200 pt-3">
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="ghost" size="sm" data-testid="quote-manual-status-toggle">
+                    {advancedStatusOpen ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />}
+                    שינוי סטטוס ידני (מתקדם)
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3">
+                  {manualStatusOptions.length === 0 ? (
+                    <p className="text-xs text-slate-500">אין מעברי סטטוס ידניים זמינים מהסטטוס הנוכחי.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {manualStatusOptions.map((option) => (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          data-testid={`quote-manual-status-${option.value}`}
+                          disabled={manualUpdating || updating || converting}
+                          onClick={() => updateStatusManually(option.value)}
+                          style={{ borderColor: option.color, color: option.color }}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -239,18 +363,6 @@ export default function QuoteDetails() {
           <Button data-testid="quote-edit-draft" variant="outline" onClick={() => navigate(createPageUrl(`QuoteForm?id=${quote.id}`))}>
             <Edit className="ml-2 h-4 w-4" />
             ערוך טיוטה
-          </Button>
-        ) : null}
-
-        {canConvert ? (
-          <Button
-            data-testid="quote-convert-to-job"
-            onClick={convertToJob}
-            disabled={converting}
-            className="bg-emerald-600 text-white hover:bg-emerald-700"
-          >
-            {converting ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Briefcase className="ml-2 h-4 w-4" />}
-            המר לעבודה
           </Button>
         ) : null}
 

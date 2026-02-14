@@ -4,7 +4,7 @@ import { MapPin, Calendar } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { JobStatusBadge, PriorityBadge } from '@/components/ui/DynamicStatusBadge';
+import { JobStatusBadge, NextActionBadge, PriorityBadge } from '@/components/ui/DynamicStatusBadge';
 import EmptyState from '@/components/shared/EmptyState';
 import { Briefcase } from 'lucide-react';
 
@@ -17,7 +17,7 @@ function getAddress(job) {
 }
 
 function getScheduledAt(job) {
-  return job.scheduled_start_at || job.scheduled_at || null;
+  return job.scheduled_start_at || null;
 }
 
 export function JobsListView({ jobs, navigate }) {
@@ -47,10 +47,11 @@ export function JobsListView({ jobs, navigate }) {
                 ) : null}
                 {job.arrival_notes ? <p className="mt-1 line-clamp-2 text-xs text-slate-500">{job.arrival_notes}</p> : null}
               </div>
-              <div className="flex flex-shrink-0 flex-col items-end gap-1">
-                <JobStatusBadge status={job.status} />
-                <PriorityBadge priority={job.priority} />
-              </div>
+                <div className="flex flex-shrink-0 flex-col items-end gap-1">
+                  <JobStatusBadge status={job.status} />
+                  <NextActionBadge status={job.status} />
+                  <PriorityBadge priority={job.priority} />
+                </div>
             </div>
           </CardContent>
         </Card>
@@ -99,7 +100,10 @@ export function JobsByStatusView({ jobs, navigate }) {
                           </div>
                         ) : null}
                       </div>
-                      <PriorityBadge priority={job.priority} />
+                      <div className="flex flex-col items-end gap-1">
+                        <NextActionBadge status={job.status} />
+                        <PriorityBadge priority={job.priority} />
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -152,6 +156,7 @@ export function JobsByClientsView({ jobs, navigate }) {
                     </div>
                     <div className="flex flex-shrink-0 flex-col items-end gap-1">
                       <JobStatusBadge status={job.status} />
+                      <NextActionBadge status={job.status} />
                       <PriorityBadge priority={job.priority} />
                     </div>
                   </div>
@@ -220,6 +225,7 @@ export function JobsByDateView({ jobs, navigate }) {
                         </div>
                         <div className="flex flex-shrink-0 flex-col items-end gap-1">
                           <JobStatusBadge status={job.status} />
+                          <NextActionBadge status={job.status} />
                           <PriorityBadge priority={job.priority} />
                         </div>
                       </div>

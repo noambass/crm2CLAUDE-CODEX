@@ -10,7 +10,9 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "repair:job-coords": "node scripts/repair-job-coordinates.mjs",
+    "seed:workflow-fixtures": "node scripts/seed-workflow-fixtures.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",

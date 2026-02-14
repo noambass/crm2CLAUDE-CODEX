@@ -9,10 +9,25 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
+import GooglePlacesInput from '@/components/shared/GooglePlacesInput';
 import { supabase } from '@/api/supabaseClient';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
+import { isStrictIsraeliAddressFormat, normalizeAddressText } from '@/lib/geo/coordsPolicy';
+
+const CLIENT_TYPE_OPTIONS = [
+  { value: 'private', label: 'לקוח פרטי' },
+  { value: 'company', label: 'חברה' },
+  { value: 'bath_company', label: 'חברת אמבטיות' },
+];
 
 export default function CreateNewClientDialog({ open, onOpenChange, onClientCreated }) {
   const [saving, setSaving] = useState(false);
@@ -23,6 +38,7 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
     email: '',
     address_text: '',
     notes: '',
+    client_type: 'private',
   });
 
   function handleChange(field, value) {
@@ -32,9 +48,14 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
   async function handleSubmit() {
     const accountName = formData.account_name.trim() || formData.full_name.trim();
     const fullName = formData.full_name.trim() || accountName;
+    const normalizedAddress = normalizeAddressText(formData.address_text);
 
     if (!accountName || !fullName) {
       toast.error('חובה להזין שם לקוח');
+      return;
+    }
+    if (normalizedAddress && !isStrictIsraeliAddressFormat(normalizedAddress)) {
+      toast.error('פורמט כתובת לא תקין. יש להזין: רחוב ומספר, עיר');
       return;
     }
 
@@ -45,8 +66,9 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
         .insert([{
           account_name: accountName,
           notes: formData.notes.trim() || null,
+          client_type: formData.client_type || 'private',
         }])
-        .select('id, account_name')
+        .select('id, account_name, client_type')
         .single();
       if (accountError) throw accountError;
 
@@ -57,7 +79,7 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
           full_name: fullName,
           phone: formData.phone.trim() || null,
           email: formData.email.trim() || null,
-          address_text: formData.address_text.trim() || null,
+          address_text: normalizedAddress || null,
           is_primary: true,
         }])
         .select('id, full_name, phone, email, address_text')
@@ -67,7 +89,11 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
       onClientCreated({
         id: account.id,
         account_name: account.account_name,
-        primary_contact: contact,
+        client_type: account.client_type,
+        primary_contact: {
+          ...contact,
+          address_text: normalizedAddress || null,
+        },
       });
 
       setFormData({
@@ -77,6 +103,7 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
         email: '',
         address_text: '',
         notes: '',
+        client_type: 'private',
       });
 
       onOpenChange(false);
@@ -145,12 +172,30 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
 
           <div className="space-y-2">
             <Label htmlFor="address_text">כתובת</Label>
-            <Input
+            <GooglePlacesInput
               id="address_text"
               value={formData.address_text}
-              onChange={(e) => handleChange('address_text', e.target.value)}
-              placeholder="רחוב, עיר"
+              onChangeText={(text) => handleChange('address_text', text)}
+              onPlaceSelected={({ addressText }) => handleChange('address_text', addressText)}
+              placeholder="הרצל 10, אשדוד"
             />
+            <p className="text-xs text-slate-500">פורמט חובה: רחוב ומספר, עיר</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>סוג לקוח</Label>
+            <Select value={formData.client_type} onValueChange={(value) => handleChange('client_type', value)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CLIENT_TYPE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

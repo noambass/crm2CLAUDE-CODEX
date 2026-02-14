@@ -13,7 +13,6 @@ export interface Job {
   id: string;
   account_id: string;
   quote_id: string | null;
-  assigned_to: string;
   title: string;
   description: string | null;
   status: JobStatus;

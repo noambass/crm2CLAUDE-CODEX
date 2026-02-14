@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import GooglePlacesInput from '@/components/shared/GooglePlacesInput';
+import { isStrictIsraeliAddressFormat, normalizeAddressText } from '@/lib/geo/coordsPolicy';
 import {
   Select,
   SelectContent,
@@ -25,6 +27,12 @@ const STATUS_OPTIONS = [
   { value: 'lead', label: 'ליד' },
   { value: 'active', label: 'פעיל' },
   { value: 'inactive', label: 'לא פעיל' },
+];
+
+const CLIENT_TYPE_OPTIONS = [
+  { value: 'private', label: 'לקוח פרטי' },
+  { value: 'company', label: 'חברה' },
+  { value: 'bath_company', label: 'חברת אמבטיות' },
 ];
 
 export default function ClientForm() {
@@ -45,9 +53,9 @@ export default function ClientForm() {
     phone: '',
     email: '',
     addressText: '',
-    contactNotes: '',
     internalNotes: '',
     status: 'active',
+    clientType: 'private',
   });
 
   useEffect(() => {
@@ -65,9 +73,9 @@ export default function ClientForm() {
           phone: profile.primaryContact?.phone || '',
           email: profile.primaryContact?.email || '',
           addressText: profile.primaryContact?.address_text || '',
-          contactNotes: profile.primaryContact?.notes || '',
           internalNotes: profile.account.notes || '',
           status: profile.account.status || 'active',
+          clientType: profile.account.client_type || 'private',
         });
       } catch (error) {
         console.error('Error loading account profile:', error);
@@ -92,6 +100,10 @@ export default function ClientForm() {
     if (!formData.fullName.trim()) {
       nextErrors.fullName = 'שם מלא הוא שדה חובה';
     }
+    const normalizedAddress = normalizeAddressText(formData.addressText);
+    if (normalizedAddress && !isStrictIsraeliAddressFormat(normalizedAddress)) {
+      nextErrors.addressText = 'יש להזין בפורמט: רחוב ומספר, עיר';
+    }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   }
@@ -108,10 +120,10 @@ export default function ClientForm() {
         fullName: formData.fullName.trim(),
         phone: formData.phone.trim(),
         email: formData.email.trim(),
-        addressText: formData.addressText.trim(),
-        contactNotes: formData.contactNotes.trim(),
+        addressText: normalizeAddressText(formData.addressText),
         internalNotes: formData.internalNotes.trim(),
         status: formData.status,
+        clientType: formData.clientType,
       };
 
       if (isEditing && accountId) {
@@ -200,13 +212,33 @@ export default function ClientForm() {
 
             <div className="space-y-2">
               <Label htmlFor="addressText">כתובת</Label>
-              <Input
+              <GooglePlacesInput
                 id="addressText"
                 data-testid="client-address"
                 value={formData.addressText}
-                onChange={(e) => setFormData((prev) => ({ ...prev, addressText: e.target.value }))}
-                placeholder="רחוב, עיר"
+                onChangeText={(text) => setFormData((prev) => ({ ...prev, addressText: text }))}
+                onPlaceSelected={({ addressText }) => setFormData((prev) => ({ ...prev, addressText }))}
+                placeholder="הרצל 10, אשדוד"
+                className={errors.addressText ? 'border-red-500' : ''}
               />
+              <p className="text-xs text-slate-500">פורמט חובה: רחוב ומספר, עיר. לדוגמה: הרצל 10, אשדוד</p>
+              {errors.addressText ? <p className="text-xs text-red-600">{errors.addressText}</p> : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label>סוג לקוח</Label>
+              <Select value={formData.clientType} onValueChange={(value) => setFormData((prev) => ({ ...prev, clientType: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLIENT_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -232,15 +264,6 @@ export default function ClientForm() {
             <CardTitle className="text-lg">הערות</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="contactNotes">הערות איש קשר</Label>
-              <Textarea
-                id="contactNotes"
-                value={formData.contactNotes}
-                onChange={(e) => setFormData((prev) => ({ ...prev, contactNotes: e.target.value }))}
-                rows={3}
-              />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="internalNotes">הערות פנימיות</Label>
               <Textarea

@@ -4,7 +4,6 @@ export interface ScheduledBlock {
   status: string;
   startAt: string;
   estimatedDurationMinutes: number;
-  assignedTo?: string | null;
 }
 
 export interface ScheduleConflict {

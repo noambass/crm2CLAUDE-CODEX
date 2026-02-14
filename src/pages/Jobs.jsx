@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, Search, Plus, Filter, List, BarChart3, Users as UsersIcon, Clock as ClockIcon } from 'lucide-react';
+import { Briefcase, Search, Plus, List, BarChart3, Users as UsersIcon, Clock as ClockIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/api/supabaseClient';
@@ -9,18 +9,9 @@ import { getDetailedErrorReason } from '@/lib/errorMessages';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import EnhancedEmptyState from '@/components/shared/EnhancedEmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { JobsListView, JobsByStatusView, JobsByClientsView, JobsByDateView } from '@/components/jobs/JobsViewMode';
-
-const STATUS_OPTIONS = [
-  { value: 'all', label: 'כל הסטטוסים' },
-  { value: 'quote', label: 'הצעת מחיר' },
-  { value: 'waiting_schedule', label: 'ממתין לתזמון' },
-  { value: 'waiting_execution', label: 'ממתין לביצוע' },
-  { value: 'done', label: 'בוצע' },
-];
 
 function normalizeJob(job) {
   const accountRel = Array.isArray(job.accounts) ? job.accounts[0] : job.accounts;
@@ -45,7 +36,6 @@ export default function Jobs() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [viewMode, setViewMode] = useState('status');
 
   useEffect(() => {
@@ -90,10 +80,9 @@ export default function Jobs() {
         if (!haystack.includes(query)) return false;
       }
 
-      if (statusFilter !== 'all' && job.status !== statusFilter) return false;
       return true;
     });
-  }, [jobs, searchQuery, statusFilter]);
+  }, [jobs, searchQuery]);
 
   if (isLoadingAuth || loading) return <LoadingSpinner />;
   if (!user) return null;
@@ -126,19 +115,6 @@ export default function Jobs() {
                 />
               </div>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-56">
-                  <Filter className="ml-2 h-4 w-4" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -184,7 +160,7 @@ export default function Jobs() {
       </Card>
 
       {filteredJobs.length === 0 ? (
-        searchQuery || statusFilter !== 'all' ? (
+        searchQuery ? (
           <EnhancedEmptyState
             icon={Briefcase}
             title="לא נמצאו תוצאות תואמות"
@@ -194,7 +170,6 @@ export default function Jobs() {
               label: 'נקה סינון',
               onClick: () => {
                 setSearchQuery('');
-                setStatusFilter('all');
               },
             }}
           />

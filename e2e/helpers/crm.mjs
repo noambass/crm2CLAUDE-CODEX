@@ -5,7 +5,7 @@ export function extractIdFromUrl(url, resourceName) {
   const regex = new RegExp(`/${resourceName}/([^/?#]+)`);
   const match = parsed.pathname.match(regex);
   if (!match?.[1]) {
-    throw new Error(`לא נמצא מזהה עבור ${resourceName} ב-URL: ${url}`);
+    throw new Error(`Could not extract ${resourceName} id from URL: ${url}`);
   }
   return decodeURIComponent(match[1]);
 }

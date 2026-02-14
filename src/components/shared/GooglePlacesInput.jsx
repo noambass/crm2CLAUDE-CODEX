@@ -40,6 +40,7 @@ export default function GooglePlacesInput({
   onChangeText,
   onPlaceSelected,
   placeholder = 'הקלד כתובת...',
+  ...inputProps
 }) {
   const inputRef = useRef(null);
   const [enabled, setEnabled] = useState(false);
@@ -86,6 +87,7 @@ export default function GooglePlacesInput({
       onChange={(e) => onChangeText?.(e.target.value)}
       placeholder={placeholder}
       autoComplete={enabled ? 'off' : 'street-address'}
+      {...inputProps}
     />
   );
 }

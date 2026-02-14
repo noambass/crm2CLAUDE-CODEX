@@ -1,15 +1,26 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Loader2, Save, Search, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, Loader2, Plus, Save, Search, Trash2 } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
+import { geocodeAddress } from '@/data/mapRepo';
+import {
+  isStrictIsraeliAddressFormat,
+  isUsableJobCoords,
+  normalizeAddressText,
+  parseCoord,
+} from '@/lib/geo/coordsPolicy';
+import { getStatusForScheduling } from '@/lib/jobs/schedulingStatus';
+import { calculateGross, calculateVAT } from '@/utils/vat';
+import { buildTenMinuteTimeOptions, isTenMinuteSlot, toTenMinuteSlot } from '@/lib/time/timeSlots';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import GooglePlacesInput from '@/components/shared/GooglePlacesInput';
 import {
   Command,
   CommandEmpty,
@@ -23,24 +34,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import CreateNewClientDialog from '@/components/job/CreateNewClientDialog';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
-
-const JOB_STATUS_OPTIONS = [
-  { value: 'quote', label: 'הצעת מחיר' },
-  { value: 'waiting_schedule', label: 'ממתין לתזמון' },
-  { value: 'waiting_execution', label: 'ממתין לביצוע' },
-  { value: 'done', label: 'בוצע' },
-];
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const EMPTY_LINE = () => ({
   id: crypto.randomUUID(),
@@ -49,10 +47,41 @@ const EMPTY_LINE = () => ({
   unit_price: 0,
 });
 
+const EMPTY_CONTACT = () => ({
+  id: crypto.randomUUID(),
+  full_name: '',
+  phone: '',
+  notes: '',
+});
+
+const CLIENT_TYPE_LABELS = {
+  private: 'פרטי',
+  company: 'חברה',
+  bath_company: 'חברת אמבטיות',
+};
+
 function toNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
+
+function normalizeContactFromDb(contact) {
+  return {
+    id: contact.id || crypto.randomUUID(),
+    full_name: contact.full_name || '',
+    phone: contact.phone || '',
+    notes: contact.relation === 'primary' ? '' : (contact.relation || ''),
+  };
+}
+
+function formatMoney(value) {
+  return Number(value || 0).toLocaleString('he-IL', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+const TIME_OPTIONS_10_MIN = buildTenMinuteTimeOptions();
 
 export default function JobForm() {
   const navigate = useNavigate();
@@ -67,29 +96,29 @@ export default function JobForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState([]);
+  const [accountAddresses, setAccountAddresses] = useState({});
   const [accountPopoverOpen, setAccountPopoverOpen] = useState(false);
   const [createClientDialogOpen, setCreateClientDialogOpen] = useState(false);
+  const [additionalContactsOpen, setAdditionalContactsOpen] = useState(false);
   const [errors, setErrors] = useState({});
+  const [jobCoordinates, setJobCoordinates] = useState({ lat: null, lng: null });
+  const [addressEditedManually, setAddressEditedManually] = useState(false);
 
   const [formData, setFormData] = useState({
     account_id: preselectedAccountId,
     account_name: '',
     title: '',
     description: '',
-    status: 'waiting_schedule',
     priority: 'normal',
-    assigned_to: 'owner',
     address_text: '',
     arrival_notes: '',
     scheduled_date: '',
     scheduled_time: '',
-    warranty_mode: 'with_warranty',
-    warranty_explanation: '',
-    contact_full_name: '',
-    contact_phone: '',
   });
 
+  const [persistedStatus, setPersistedStatus] = useState('waiting_schedule');
   const [lineItems, setLineItems] = useState([EMPTY_LINE()]);
+  const [jobContacts, setJobContacts] = useState([EMPTY_CONTACT()]);
 
   useEffect(() => {
     if (!user) return;
@@ -98,29 +127,42 @@ export default function JobForm() {
 
     async function loadData() {
       try {
-        const [accountsRes, jobRes] = await Promise.all([
-          supabase.from('accounts').select('id, account_name').order('created_at', { ascending: false }),
+        const [accountsRes, contactsRes, jobRes] = await Promise.all([
+          supabase.from('accounts').select('id, account_name, client_type').order('created_at', { ascending: false }),
+          supabase.from('contacts').select('account_id, address_text, is_primary, created_at').order('created_at', { ascending: true }),
           isEditing
             ? supabase.from('jobs').select('*').eq('id', jobId).single()
             : Promise.resolve({ data: null, error: null }),
         ]);
 
         if (accountsRes.error) throw accountsRes.error;
+        if (contactsRes.error) throw contactsRes.error;
         if (jobRes.error) throw jobRes.error;
 
         const accountRows = accountsRes.data || [];
+        const contactsRows = contactsRes.data || [];
+        const nextAccountAddresses = {};
+
+        contactsRows.forEach((contact) => {
+          if (!contact.account_id || !contact.address_text) return;
+          if (!nextAccountAddresses[contact.account_id] || contact.is_primary) {
+            nextAccountAddresses[contact.account_id] = contact.address_text;
+          }
+        });
+
         if (!mounted) return;
         setAccounts(accountRows);
+        setAccountAddresses(nextAccountAddresses);
 
         if (isEditing && jobRes.data) {
           const job = jobRes.data;
           const lineItemsFromDb = Array.isArray(job.line_items) && job.line_items.length > 0
             ? job.line_items.map((item) => ({
-                id: item.id || crypto.randomUUID(),
-                description: item.description || 'שירות',
-                quantity: toNumber(item.quantity) || 1,
-                unit_price: toNumber(item.unit_price),
-              }))
+              id: item.id || crypto.randomUUID(),
+              description: item.description || 'שירות',
+              quantity: toNumber(item.quantity) || 1,
+              unit_price: toNumber(item.unit_price),
+            }))
             : [EMPTY_LINE()];
 
           const selectedAccount = accountRows.find((acc) => acc.id === job.account_id);
@@ -133,34 +175,45 @@ export default function JobForm() {
             account_name: selectedAccount?.account_name || '',
             title: job.title || '',
             description: job.description || '',
-            status: job.status || 'waiting_schedule',
             priority: job.priority || 'normal',
-            assigned_to: job.assigned_to || 'owner',
             address_text: job.address_text || '',
             arrival_notes: job.arrival_notes || '',
             scheduled_date: scheduledDate ? scheduledDate.toISOString().slice(0, 10) : '',
-            scheduled_time: scheduledDate ? scheduledDate.toISOString().slice(11, 16) : '',
+            scheduled_time: scheduledDate ? toTenMinuteSlot(scheduledDate.toISOString().slice(11, 16)) : '',
           }));
+
+          setPersistedStatus(job.status || 'waiting_schedule');
+          const parsedLat = parseCoord(job.lat);
+          const parsedLng = parseCoord(job.lng);
+          setJobCoordinates({
+            lat: isUsableJobCoords(parsedLat, parsedLng) ? parsedLat : null,
+            lng: isUsableJobCoords(parsedLat, parsedLng) ? parsedLng : null,
+          });
+          setAddressEditedManually(false);
 
           const { data: contactsData, error: contactsError } = await supabase
             .from('job_contacts')
-            .select('full_name, phone')
+            .select('id, full_name, phone, relation, sort_order')
             .eq('job_id', job.id)
-            .order('sort_order', { ascending: true })
-            .limit(1);
+            .order('sort_order', { ascending: true });
           if (contactsError) throw contactsError;
 
-          if (contactsData?.[0]) {
-            setFormData((prev) => ({
-              ...prev,
-              contact_full_name: contactsData[0].full_name || '',
-              contact_phone: contactsData[0].phone || '',
-            }));
+          if (contactsData?.length) {
+            setJobContacts(contactsData.map(normalizeContactFromDb));
+            setAdditionalContactsOpen(true);
+          } else {
+            setJobContacts([EMPTY_CONTACT()]);
+            setAdditionalContactsOpen(false);
           }
         } else if (preselectedAccountId) {
           const selected = accountRows.find((acc) => acc.id === preselectedAccountId);
           if (selected) {
-            setFormData((prev) => ({ ...prev, account_name: selected.account_name }));
+            setFormData((prev) => ({
+              ...prev,
+              account_id: selected.id,
+              account_name: selected.account_name,
+              address_text: prev.address_text || nextAccountAddresses[selected.id] || '',
+            }));
           }
         }
       } catch (error) {
@@ -185,27 +238,68 @@ export default function JobForm() {
     () => lineItems.reduce((sum, item) => sum + toNumber(item.quantity) * toNumber(item.unit_price), 0),
     [lineItems],
   );
+  const vatAmount = calculateVAT(subtotal);
+  const totalWithVat = calculateGross(subtotal);
+
+  function handleAddressTextChange(addressText, { isManual }) {
+    setFormData((prev) => ({ ...prev, address_text: addressText }));
+    if (isManual) {
+      setAddressEditedManually(true);
+      setJobCoordinates({ lat: null, lng: null });
+    }
+  }
+
+  function handleAddressPlaceSelected({ addressText, lat, lng }) {
+    setFormData((prev) => ({ ...prev, address_text: addressText || prev.address_text }));
+    setAddressEditedManually(false);
+    const parsedLat = parseCoord(lat);
+    const parsedLng = parseCoord(lng);
+    setJobCoordinates({
+      lat: isUsableJobCoords(parsedLat, parsedLng) ? parsedLat : null,
+      lng: isUsableJobCoords(parsedLat, parsedLng) ? parsedLng : null,
+    });
+  }
 
   function handleAccountSelect(account) {
+    const suggestedAddress = accountAddresses[account.id] || '';
+    const shouldAutofillAddress = !formData.address_text || !addressEditedManually;
+
     setFormData((prev) => ({
       ...prev,
       account_id: account.id,
       account_name: account.account_name,
+      address_text: shouldAutofillAddress ? suggestedAddress : prev.address_text,
     }));
+
+    if (shouldAutofillAddress) {
+      setJobCoordinates({ lat: null, lng: null });
+      setAddressEditedManually(false);
+    }
+
     setErrors((prev) => ({ ...prev, account_id: null }));
     setAccountPopoverOpen(false);
   }
 
   function handleClientCreated(newAccount) {
+    const suggestedAddress = newAccount.primary_contact?.address_text || '';
+    const shouldAutofillAddress = !formData.address_text || !addressEditedManually;
+
     setAccounts((prev) => [newAccount, ...prev]);
+    setAccountAddresses((prev) => ({ ...prev, [newAccount.id]: suggestedAddress }));
     setFormData((prev) => ({
       ...prev,
       account_id: newAccount.id,
       account_name: newAccount.account_name,
-      contact_full_name: newAccount.primary_contact?.full_name || prev.contact_full_name,
-      contact_phone: newAccount.primary_contact?.phone || prev.contact_phone,
+      address_text: shouldAutofillAddress ? suggestedAddress : prev.address_text,
     }));
+
+    if (shouldAutofillAddress) {
+      setJobCoordinates({ lat: null, lng: null });
+      setAddressEditedManually(false);
+    }
+
     setErrors((prev) => ({ ...prev, account_id: null }));
+    setCreateClientDialogOpen(false);
   }
 
   function updateLineItem(id, field, value) {
@@ -224,17 +318,37 @@ export default function JobForm() {
     setLineItems((prev) => prev.filter((item) => item.id !== id));
   }
 
+  function updateJobContact(id, field, value) {
+    setJobContacts((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
+  }
+
+  function addJobContact() {
+    setJobContacts((prev) => [...prev, EMPTY_CONTACT()]);
+  }
+
+  function removeJobContact(id) {
+    if (jobContacts.length <= 1) {
+      setJobContacts([EMPTY_CONTACT()]);
+      return;
+    }
+    setJobContacts((prev) => prev.filter((item) => item.id !== id));
+  }
+
   function validate() {
     const next = {};
 
     if (!formData.account_id) next.account_id = 'יש לבחור לקוח';
     if (!formData.title.trim()) next.title = 'כותרת עבודה היא שדה חובה';
 
-    if (formData.warranty_mode === 'no_warranty' && !formData.warranty_explanation.trim()) {
-      next.warranty_explanation = 'חובה להזין הסבר ללא אחריות';
+    const normalizedAddress = normalizeAddressText(formData.address_text);
+    if (normalizedAddress && !isStrictIsraeliAddressFormat(normalizedAddress)) {
+      next.address_text = 'יש להזין כתובת בפורמט: רחוב ומספר, עיר';
     }
 
     const validLines = lineItems.filter((line) => line.description.trim() && toNumber(line.quantity) > 0 && toNumber(line.unit_price) >= 0);
+    if (formData.scheduled_time && !isTenMinuteSlot(formData.scheduled_time)) {
+      next.scheduled_time = 'יש לבחור שעה בקפיצות של 10 דקות';
+    }
     if (validLines.length === 0) next.line_items = 'חובה לפחות שורת שירות אחת תקינה';
 
     setErrors(next);
@@ -244,17 +358,12 @@ export default function JobForm() {
   async function handleSubmit(event) {
     event.preventDefault();
     if (!user) return;
-    if (!validate()) {
-      if (formData.warranty_mode === 'no_warranty' && !formData.warranty_explanation.trim()) {
-        toast.error('חובה להזין הסבר ללא אחריות');
-      }
-      return;
-    }
+    if (!validate()) return;
 
     setSaving(true);
 
     try {
-      const baseLines = lineItems
+      const finalLines = lineItems
         .filter((line) => line.description.trim())
         .map((line) => {
           const quantity = Math.max(1, toNumber(line.quantity));
@@ -268,36 +377,64 @@ export default function JobForm() {
           };
         });
 
-      let finalLines = baseLines;
-      const agreedAmount = toNumber(formData.agreed_amount);
-      if (agreedAmount > 0) {
-        finalLines = [{
-          id: baseLines[0]?.id || crypto.randomUUID(),
-          description: baseLines[0]?.description || formData.title.trim() || 'שירות',
-          quantity: 1,
-          unit_price: agreedAmount,
-          line_total: agreedAmount,
-        }];
-      }
-
       const scheduledStartAt =
         formData.scheduled_date && formData.scheduled_time
           ? new Date(`${formData.scheduled_date}T${formData.scheduled_time}`).toISOString()
           : null;
 
-      const status = scheduledStartAt && ['quote', 'waiting_schedule'].includes(formData.status)
-        ? 'waiting_execution'
-        : formData.status;
+      let nextLat = parseCoord(jobCoordinates.lat);
+      let nextLng = parseCoord(jobCoordinates.lng);
+      const trimmedAddress = normalizeAddressText(formData.address_text);
+      const hasAddress = Boolean(trimmedAddress);
+      let shouldWarnMissingCoords = false;
+
+      if (!hasAddress) {
+        nextLat = null;
+        nextLng = null;
+      } else if (!isUsableJobCoords(nextLat, nextLng)) {
+        try {
+          const geo = await geocodeAddress(trimmedAddress);
+          const parsedLat = parseCoord(geo?.lat);
+          const parsedLng = parseCoord(geo?.lng);
+          if (isUsableJobCoords(parsedLat, parsedLng)) {
+            nextLat = parsedLat;
+            nextLng = parsedLng;
+          } else {
+            nextLat = null;
+            nextLng = null;
+            shouldWarnMissingCoords = true;
+          }
+        } catch {
+          nextLat = null;
+          nextLng = null;
+          shouldWarnMissingCoords = true;
+        }
+      }
+
+      setJobCoordinates({
+        lat: isUsableJobCoords(nextLat, nextLng) ? nextLat : null,
+        lng: isUsableJobCoords(nextLat, nextLng) ? nextLng : null,
+      });
+
+      if (shouldWarnMissingCoords) {
+        toast.warning('לא הצלחנו לאתר מיקום מדויק. העבודה תישמר ללא סימון במפה.');
+      }
+
+      let nextStatus = isEditing ? persistedStatus : 'waiting_schedule';
+      if (scheduledStartAt) {
+        nextStatus = getStatusForScheduling(nextStatus);
+      }
 
       const payload = {
         account_id: formData.account_id,
-        assigned_to: formData.assigned_to || 'owner',
         title: formData.title.trim(),
         description: formData.description.trim() || null,
-        status,
+        status: nextStatus,
         priority: formData.priority,
-        address_text: formData.address_text.trim() || null,
+        address_text: trimmedAddress || null,
         arrival_notes: formData.arrival_notes.trim() || null,
+        lat: isUsableJobCoords(nextLat, nextLng) ? nextLat : null,
+        lng: isUsableJobCoords(nextLat, nextLng) ? nextLng : null,
         scheduled_start_at: scheduledStartAt,
         line_items: finalLines,
       };
@@ -316,20 +453,30 @@ export default function JobForm() {
       const { error: deleteContactsError } = await supabase.from('job_contacts').delete().eq('job_id', savedId);
       if (deleteContactsError) throw deleteContactsError;
 
-      if (formData.contact_full_name.trim()) {
-        const { error: insertContactError } = await supabase.from('job_contacts').insert([{
+      const normalizedContacts = jobContacts
+        .map((contact) => ({
+          full_name: String(contact.full_name || '').trim(),
+          phone: String(contact.phone || '').trim(),
+          notes: String(contact.notes || '').trim(),
+        }))
+        .filter((contact) => contact.full_name);
+
+      if (normalizedContacts.length > 0) {
+        const rows = normalizedContacts.map((contact, index) => ({
           job_id: savedId,
           account_id: formData.account_id,
-          full_name: formData.contact_full_name.trim(),
-          phone: formData.contact_phone.trim() || null,
-          relation: 'primary',
-          sort_order: 0,
-        }]);
+          full_name: contact.full_name,
+          phone: contact.phone || null,
+          relation: contact.notes || null,
+          sort_order: index,
+        }));
+        const { error: insertContactError } = await supabase.from('job_contacts').insert(rows);
         if (insertContactError) throw insertContactError;
       }
 
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['calendar'] });
       toast.success(isEditing ? 'העבודה עודכנה בהצלחה' : 'העבודה נוצרה בהצלחה');
       navigate(createPageUrl(`JobDetails?id=${savedId}`));
     } catch (error) {
@@ -366,7 +513,7 @@ export default function JobForm() {
               + לקוח חדש
             </Button>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Popover open={accountPopoverOpen} onOpenChange={setAccountPopoverOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -387,7 +534,10 @@ export default function JobForm() {
                     <CommandGroup>
                       {accounts.map((account) => (
                         <CommandItem key={account.id} onSelect={() => handleAccountSelect(account)}>
-                          {account.account_name}
+                          <div className="flex w-full items-center justify-between gap-2">
+                            <span>{account.account_name}</span>
+                            <span className="text-xs text-slate-500">{CLIENT_TYPE_LABELS[account.client_type] || 'פרטי'}</span>
+                          </div>
                         </CommandItem>
                       ))}
                     </CommandGroup>
@@ -396,6 +546,47 @@ export default function JobForm() {
               </PopoverContent>
             </Popover>
             {errors.account_id ? <p className="mt-1 text-sm text-red-600">{errors.account_id}</p> : null}
+
+            <Collapsible open={additionalContactsOpen} onOpenChange={setAdditionalContactsOpen}>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="outline" className="w-full justify-between">
+                  <span>אנשי קשר נוספים</span>
+                  {additionalContactsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 pt-4">
+                {jobContacts.map((contact, index) => (
+                  <div key={contact.id} className="space-y-2 rounded-xl bg-slate-50 p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-slate-600">איש קשר {index + 1}</p>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeJobContact(contact.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Input
+                      value={contact.full_name}
+                      onChange={(e) => updateJobContact(contact.id, 'full_name', e.target.value)}
+                      placeholder="שם"
+                    />
+                    <Input
+                      value={contact.phone}
+                      onChange={(e) => updateJobContact(contact.id, 'phone', e.target.value)}
+                      placeholder="טלפון"
+                      dir="ltr"
+                    />
+                    <Textarea
+                      value={contact.notes}
+                      onChange={(e) => updateJobContact(contact.id, 'notes', e.target.value)}
+                      placeholder="הערות"
+                      rows={2}
+                    />
+                  </div>
+                ))}
+                <Button type="button" variant="outline" onClick={addJobContact}>
+                  <Plus className="ml-1 h-4 w-4" /> הוסף איש קשר
+                </Button>
+              </CollapsibleContent>
+            </Collapsible>
           </CardContent>
         </Card>
 
@@ -433,38 +624,49 @@ export default function JobForm() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>מבצע</Label>
+                <Label>תאריך</Label>
                 <Input
-                  data-testid="job-assigned-to"
-                  value={formData.assigned_to}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, assigned_to: e.target.value }))}
-                  placeholder="owner"
+                  type="date"
+                  value={formData.scheduled_date}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, scheduled_date: e.target.value }))}
                 />
               </div>
-
               <div className="space-y-2">
-                <Label>סטטוס</Label>
-                <Select value={formData.status} onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {JOB_STATUS_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>שעה</Label>
+                <select
+                  data-testid="job-scheduled-time"
+                  value={formData.scheduled_time}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, scheduled_time: e.target.value }))}
+                  className={`w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ${errors.scheduled_time ? 'border-red-500' : ''}`}
+                >
+                  <option value="">בחר שעה...</option>
+                  {TIME_OPTIONS_10_MIN.map((time) => (
+                    <option key={time} value={time}>{time}</option>
+                  ))}
+                </select>
+                {errors.scheduled_time ? <p className="text-xs text-red-600">{errors.scheduled_time}</p> : null}
               </div>
             </div>
+          </CardContent>
+        </Card>
 
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">מיקום</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>כתובת</Label>
-              <Input
+              <GooglePlacesInput
                 data-testid="job-address"
                 value={formData.address_text}
-                onChange={(e) => setFormData((prev) => ({ ...prev, address_text: e.target.value }))}
-                placeholder="רחוב, עיר"
+                onChangeText={(text) => handleAddressTextChange(text, { isManual: true })}
+                onPlaceSelected={handleAddressPlaceSelected}
+                placeholder="הרצל 10, אשדוד"
+                className={errors.address_text ? 'border-red-500' : ''}
               />
+              <p className="text-xs text-slate-500">פורמט חובה: רחוב ומספר, עיר. לדוגמה: הרצל 10, אשדוד</p>
+              {errors.address_text ? <p className="text-xs text-red-600">{errors.address_text}</p> : null}
             </div>
 
             <div className="space-y-2">
@@ -475,63 +677,6 @@ export default function JobForm() {
                 rows={2}
               />
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>תאריך</Label>
-                <Input
-                  type="date"
-                  value={formData.scheduled_date}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, scheduled_date: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>שעה</Label>
-                <Input
-                  type="time"
-                  value={formData.scheduled_time}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, scheduled_time: e.target.value }))}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg">אחריות</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-2">
-              <Label>מצב אחריות</Label>
-              <Select
-                value={formData.warranty_mode}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, warranty_mode: value }))}
-              >
-                <SelectTrigger data-testid="job-warranty-trigger">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="with_warranty">עם אחריות</SelectItem>
-                  <SelectItem value="no_warranty">אין אחריות</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {formData.warranty_mode === 'no_warranty' ? (
-              <div className="space-y-2">
-                <Label>הסבר ללא אחריות</Label>
-                <Textarea
-                  data-testid="job-warranty-explanation"
-                  value={formData.warranty_explanation}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, warranty_explanation: e.target.value }))}
-                  className={errors.warranty_explanation ? 'border-red-500' : ''}
-                />
-                {errors.warranty_explanation ? (
-                  <p className="text-xs text-red-600">{errors.warranty_explanation}</p>
-                ) : null}
-              </div>
-            ) : null}
           </CardContent>
         </Card>
 
@@ -543,82 +688,81 @@ export default function JobForm() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>סכום מוסכם (מהיר)</Label>
-              <Input
-                data-testid="job-agreed-amount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={toNumber(formData.agreed_amount) || ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, agreed_amount: e.target.value }))}
-                dir="ltr"
-              />
-            </div>
+            {lineItems.map((item, index) => {
+              const quantity = Math.max(1, toNumber(item.quantity));
+              const unitPrice = Math.max(0, toNumber(item.unit_price));
+              const lineTotal = quantity * unitPrice;
+              const unitWithVat = calculateGross(unitPrice);
+              const lineWithVat = calculateGross(lineTotal);
 
-            {lineItems.map((item, index) => (
-              <div key={item.id} className="space-y-3 rounded-xl bg-slate-50 p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-500">שורה {index + 1}</span>
-                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeLineItem(item.id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-                <Input
-                  value={item.description}
-                  onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
-                  placeholder="תיאור שירות"
-                />
-                <div className="grid grid-cols-2 gap-3">
+              return (
+                <div key={item.id} className="space-y-3 rounded-xl bg-slate-50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-500">שורה {index + 1}</span>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeLineItem(item.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
                   <Input
-                    type="number"
-                    min="1"
-                    value={item.quantity}
-                    onChange={(e) => updateLineItem(item.id, 'quantity', e.target.value)}
-                    dir="ltr"
+                    value={item.description}
+                    onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
+                    placeholder="תיאור שירות"
                   />
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.unit_price}
-                    onChange={(e) => updateLineItem(item.id, 'unit_price', e.target.value)}
-                    dir="ltr"
-                  />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>כמות</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => updateLineItem(item.id, 'quantity', e.target.value)}
+                        dir="ltr"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>מחיר יחידה (לפני מע"מ)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.unit_price}
+                        onChange={(e) => updateLineItem(item.id, 'unit_price', e.target.value)}
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 rounded-lg bg-white p-3 text-sm text-slate-600 sm:grid-cols-2" dir="ltr">
+                    <div className="flex items-center justify-between">
+                      <span>יחידה כולל מע"מ:</span>
+                      <span className="font-medium text-slate-800">₪{formatMoney(unitWithVat)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>סה"כ שורה כולל מע"מ:</span>
+                      <span className="font-medium text-slate-800">₪{formatMoney(lineWithVat)}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {errors.line_items ? <p className="text-sm text-red-600">{errors.line_items}</p> : null}
 
-            <div className="rounded-xl bg-slate-800 p-4 text-white">
+            <div className="space-y-3 rounded-xl bg-slate-800 p-4 text-white">
               <div className="flex items-center justify-between">
                 <span>סה"כ לפני מע"מ</span>
-                <span dir="ltr">₪{subtotal.toFixed(2)}</span>
+                <span dir="ltr">₪{formatMoney(subtotal)}</span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg">איש קשר לעבודה</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>שם</Label>
-              <Input
-                value={formData.contact_full_name}
-                onChange={(e) => setFormData((prev) => ({ ...prev, contact_full_name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>טלפון</Label>
-              <Input
-                value={formData.contact_phone}
-                onChange={(e) => setFormData((prev) => ({ ...prev, contact_phone: e.target.value }))}
-                dir="ltr"
-              />
+              <div className="flex items-center justify-between">
+                <span>מע"מ (18%)</span>
+                <span dir="ltr">₪{formatMoney(vatAmount)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-white/20 pt-3 text-lg font-bold">
+                <span>סה"כ כולל מע"מ</span>
+                <span dir="ltr">₪{formatMoney(totalWithVat)}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -651,3 +795,4 @@ export default function JobForm() {
     </div>
   );
 }
+
