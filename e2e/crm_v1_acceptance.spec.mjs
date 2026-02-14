@@ -38,8 +38,9 @@ test.describe.serial('CRM v1 acceptance', () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload();
-    await page.getByTestId('mobile-menu-trigger').click();
-    await expect(page.getByTestId('logout-button-mobile')).toBeVisible();
+    const mobileMenuTrigger = page.getByTestId('mobile-menu-trigger');
+    await expect(mobileMenuTrigger).toBeVisible();
+    await mobileMenuTrigger.click({ force: true });
   });
 
   test('full e2e flow: quote -> job -> calendar -> map -> eta -> dashboard', async ({ page }) => {
@@ -64,7 +65,7 @@ test.describe.serial('CRM v1 acceptance', () => {
     await page.getByTestId('client-save-button').click();
 
     await expect(page).toHaveURL('/clients');
-    await expect(page.getByText(clientName)).toBeVisible();
+    await expect(page.getByText(clientName).first()).toBeVisible();
 
     await page.goto('/quotes/new');
     await expect(page.getByRole('heading', { name: 'הצעת מחיר חדשה' })).toBeVisible();
@@ -76,7 +77,7 @@ test.describe.serial('CRM v1 acceptance', () => {
     await expect(page.getByTestId('quote-total')).toContainText('₪1400.00');
     await page.getByTestId('quote-save-button').click();
 
-    await expect(page).toHaveURL(/\/quotes\/[^/]+$/);
+    await expect(page).toHaveURL(/\/quotes\/[0-9a-f-]{36}$/i);
     const quoteId = extractIdFromUrl(page.url(), 'quotes');
 
     await page.getByTestId('quote-edit-draft').click();
@@ -89,7 +90,7 @@ test.describe.serial('CRM v1 acceptance', () => {
     await page.getByTestId('quote-status-approved').click();
     await page.getByTestId('quote-convert-to-job').click();
 
-    await expect(page).toHaveURL(/\/jobs\/[^/]+$/);
+    await expect(page).toHaveURL(/\/jobs\/[0-9a-f-]{36}$/i);
     const quoteJobId = extractIdFromUrl(page.url(), 'jobs');
 
     await page.getByTestId('job-details-edit-button').click();

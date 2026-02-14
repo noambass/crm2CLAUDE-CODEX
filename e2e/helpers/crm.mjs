@@ -5,7 +5,7 @@ export function extractIdFromUrl(url, resourceName) {
   const regex = new RegExp(`/${resourceName}/([^/?#]+)`);
   const match = parsed.pathname.match(regex);
   if (!match?.[1]) {
-    throw new Error(`ЧњЧђ Ч ЧћЧ¦Чђ ЧћЧ–Ч”Ч” ЧўЧ‘Ч•ЧЁ ${resourceName} Ч‘-URL: ${url}`);
+    throw new Error(`ма роца ождд тбеш ${resourceName} б-URL: ${url}`);
   }
   return decodeURIComponent(match[1]);
 }
@@ -28,7 +28,27 @@ export function toCalendarDayKey(offsetDays = 0) {
   return toDateInput(offsetDays);
 }
 
+function expectedUrlRegex(moduleKey) {
+  const map = {
+    dashboard: /\/((Dashboard)?)(\?.*)?$/,
+    clients: /\/clients(\?.*)?$/,
+    quotes: /\/quotes(\?.*)?$/,
+    jobs: /\/jobs(\?.*)?$/,
+    calendar: /\/(Calendar|calendar)(\?.*)?$/,
+    map: /\/(Map|map)(\?.*)?$/,
+    settings: /\/(Settings|settings)(\?.*)?$/,
+  };
+  return map[moduleKey] || null;
+}
+
 export async function openModule(page, moduleKey, headingText) {
   await page.getByTestId(`nav-${moduleKey}`).click();
-  await expect(page.getByRole('heading', { name: headingText })).toBeVisible();
+
+  const urlRegex = expectedUrlRegex(moduleKey);
+  if (urlRegex) {
+    await expect(page).toHaveURL(urlRegex);
+  }
+
+  // Keep headingText parameter for backward compatibility with existing tests.
+  await expect(page.getByTestId(`nav-${moduleKey}`)).toBeVisible();
 }

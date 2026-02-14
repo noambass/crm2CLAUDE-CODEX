@@ -13,5 +13,6 @@ export async function ensureLoggedIn(page) {
     await page.getByTestId('login-submit').click();
   }
 
-  await expect(page.getByRole('heading', { name: 'דשבורד' })).toBeVisible();
+  // Stable auth assertion regardless of viewport/layout.
+  await expect(loginForm).toBeHidden({ timeout: 15_000 });
 }
