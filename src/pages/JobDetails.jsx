@@ -10,6 +10,7 @@ import {
   Clock3,
   Edit,
   ExternalLink,
+  FileText,
   ListChecks,
   Mail,
   MapPin,
@@ -40,6 +41,8 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
+import { getLatestInvoiceForJob } from '@/data/invoicesRepo';
+import GenerateInvoiceDialog from '@/components/invoice/GenerateInvoiceDialog';
 
 const TIME_OPTIONS_10_MIN = buildTenMinuteTimeOptions();
 const DEFAULT_TIME = '08:00';
@@ -125,6 +128,8 @@ export default function JobDetails() {
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
   const [scheduleData, setScheduleData] = useState({ date: '', time: DEFAULT_TIME });
   const [manualStatus, setManualStatus] = useState('');
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [latestInvoice, setLatestInvoice] = useState(null);
 
   useEffect(() => {
     if (!user || !jobId) return;
@@ -167,6 +172,14 @@ export default function JobDetails() {
         setJob(jobData);
         setJobContacts((contactsRes.data || []).map(normalizeJobContact));
         setClientPrimaryContact(clientContactRes.data || null);
+
+        // Load latest invoice for this job
+        try {
+          const invoice = await getLatestInvoiceForJob(jobId);
+          if (mounted) setLatestInvoice(invoice);
+        } catch {
+          // non-critical – table may not exist yet
+        }
       } catch (error) {
         console.error('Error loading job details:', error);
         toast.error('שגיאה בטעינת פרטי עבודה', {
@@ -410,6 +423,16 @@ export default function JobDetails() {
     }
   }
 
+  async function reloadInvoice() {
+    if (!jobId) return;
+    try {
+      const inv = await getLatestInvoiceForJob(jobId);
+      setLatestInvoice(inv);
+    } catch {
+      // ignore
+    }
+  }
+
   const accountName = getAccountName(job);
   const wazeUrl = buildWazeUrl(job);
 
@@ -465,7 +488,7 @@ export default function JobDetails() {
 
       <Card className="sticky top-20 z-20 border border-slate-200 bg-white/95 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
         <CardContent className="p-3">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
             <Button
               type="button"
               onClick={openScheduleDialog}
@@ -500,6 +523,18 @@ export default function JobDetails() {
             >
               <CheckCircle2 className="ml-2 h-4 w-4" />
               {job.status === 'done' ? 'בוצע' : completing ? 'מסמן...' : 'סמן כבוצע'}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setInvoiceDialogOpen(true)}
+              disabled={completing}
+              data-testid="job-details-invoice-button"
+              className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
+            >
+              <FileText className="ml-2 h-4 w-4" />
+              הפק חשבונית
             </Button>
 
             <Button
@@ -730,6 +765,56 @@ export default function JobDetails() {
         </CardContent>
       </Card>
 
+      {latestInvoice && (
+        <Card className="border border-emerald-200 bg-emerald-50/50 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="h-5 w-5 text-emerald-600" />
+                חשבונית מס
+              </CardTitle>
+              <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+                latestInvoice.status === 'draft'
+                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                  : latestInvoice.status === 'error'
+                    ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+              }`}>
+                {latestInvoice.status === 'draft' ? 'טיוטה' : latestInvoice.status === 'error' ? 'שגיאה' : latestInvoice.status === 'pending' ? 'בתהליך' : latestInvoice.status}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {latestInvoice.greeninvoice_doc_number && (
+              <div className="flex justify-between">
+                <span className="text-slate-500">מספר מסמך</span>
+                <span className="font-medium">{latestInvoice.greeninvoice_doc_number}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-slate-500">סכום כולל מע"מ</span>
+              <span className="font-medium" dir="ltr">₪{formatMoney(latestInvoice.grand_total)}</span>
+            </div>
+            {latestInvoice.greeninvoice_doc_url && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 w-full border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                onClick={() => window.open(latestInvoice.greeninvoice_doc_url, '_blank', 'noopener,noreferrer')}
+              >
+                <ExternalLink className="ml-2 h-4 w-4" />
+                צפה בחשבונית ירוקה
+              </Button>
+            )}
+            {latestInvoice.error_message && (
+              <p className="rounded-lg bg-red-50 p-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-300">
+                {latestInvoice.error_message}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">ציר פעילות</CardTitle>
@@ -815,6 +900,14 @@ export default function JobDetails() {
           </Button>
         </div>
       ) : null}
+
+      <GenerateInvoiceDialog
+        open={invoiceDialogOpen}
+        onOpenChange={setInvoiceDialogOpen}
+        job={job}
+        accountName={accountName}
+        onInvoiceCreated={reloadInvoice}
+      />
     </div>
   );
 }
