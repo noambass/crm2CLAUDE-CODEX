@@ -1,8 +1,8 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { FileText, Search, Plus, Filter } from 'lucide-react';
+import { FileText, Search, Plus, FileEdit, CheckCircle, XCircle } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/lib/AuthContext';
 import { listQuotes, getQuoteAccountName } from '@/data/quotesRepo';
@@ -12,22 +12,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import EnhancedEmptyState from '@/components/shared/EnhancedEmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
-const QUOTE_STATUS_OPTIONS = [
-  { value: 'all', label: 'כל הסטטוסים' },
-  { value: 'draft', label: 'טיוטה' },
-  { value: 'sent', label: 'נשלחה' },
-  { value: 'approved', label: 'אושרה' },
-  { value: 'rejected', label: 'נדחתה' },
+const STATUS_TABS = [
+  { key: 'all', label: 'הכול', icon: FileText },
+  { key: 'draft', label: 'טיוטה', icon: FileEdit },
+  { key: 'approved', label: 'אושרה', icon: CheckCircle },
+  { key: 'rejected', label: 'נדחתה', icon: XCircle },
 ];
 
 const QUOTE_STATUS_CONFIG = {
@@ -73,6 +65,18 @@ export default function Quotes() {
     };
   }, [user]);
 
+  const statusCounts = useMemo(() => {
+    return quotes.reduce(
+      (acc, quote) => {
+        const status = quote.status || 'draft';
+        acc.all += 1;
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      },
+      { all: 0, draft: 0, sent: 0, approved: 0, rejected: 0 },
+    );
+  }, [quotes]);
+
   const filteredQuotes = useMemo(() => {
     return quotes.filter((quote) => {
       if (statusFilter !== 'all' && quote.status !== statusFilter) return false;
@@ -113,30 +117,47 @@ export default function Quotes() {
       </div>
 
       <Card className="border-0 shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <Input
-                placeholder="חיפוש לפי לקוח או הערות..."
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="border-slate-200 pr-10"
-              />
+        <CardContent className="space-y-4 p-4">
+          <div className="rounded-xl bg-muted/30 p-1 dark:bg-muted/20">
+            <div className="flex flex-wrap gap-1">
+              {STATUS_TABS.map((tab) => {
+                const isActive = statusFilter === tab.key;
+                const count = statusCounts[tab.key] || 0;
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setStatusFilter(tab.key)}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                      isActive
+                        ? 'bg-[#00214d] text-white shadow-sm hover:bg-[#00214d]/90'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{tab.label}</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums ${
+                        isActive ? 'bg-white/25' : 'bg-muted'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-52">
-                <Filter className="ml-2 h-4 w-4" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {QUOTE_STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          </div>
+
+          <div className="relative flex-1">
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="חיפוש לפי לקוח או הערות..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="border-border pr-10"
+            />
           </div>
         </CardContent>
       </Card>

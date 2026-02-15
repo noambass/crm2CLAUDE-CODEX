@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Briefcase, Search, Plus, List, BarChart3, Users as UsersIcon, Clock as ClockIcon } from 'lucide-react';
 import { toast } from 'sonner';
@@ -87,73 +87,78 @@ export default function Jobs() {
   if (isLoadingAuth || loading) return <LoadingSpinner />;
   if (!user) return null;
 
+  const isFiltered = Boolean(searchQuery.trim());
+  const resultsCount = filteredJobs.length;
+
   return (
     <div dir="rtl" className="space-y-6 p-4 lg:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 lg:text-3xl">עבודות</h1>
-          <p className="mt-1 text-slate-500">{jobs.length} עבודות במערכת</p>
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground lg:text-3xl">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#00214d]/10 text-[#00214d] dark:bg-[#00214d]/20 dark:text-blue-400">
+              <Briefcase className="h-5 w-5" />
+            </span>
+            עבודות
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            {isFiltered ? (
+              <>
+                מציג {resultsCount} מתוך {jobs.length} עבודות
+              </>
+            ) : (
+              <>{jobs.length} עבודות במערכת</>
+            )}
+          </p>
         </div>
 
-        <Button onClick={() => navigate(createPageUrl('JobForm'))} className="bg-[#00214d] text-white hover:opacity-90">
+        <Button onClick={() => navigate(createPageUrl('JobForm'))} className="bg-[#00214d] text-white shadow-sm hover:bg-[#00214d]/90">
           <Plus className="ml-2 h-4 w-4" />
           עבודה חדשה
         </Button>
       </div>
 
-      <Card className="border-0 shadow-sm">
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-4 sm:flex-row">
-              <div className="relative flex-1">
-                <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="חיפוש לפי כותרת, לקוח או כתובת..."
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  className="border-slate-200 pr-10"
-                />
-              </div>
-
+      <Card className="border-0 shadow-sm overflow-hidden">
+        <CardContent className="space-y-4 p-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="חיפוש לפי כותרת, לקוח או כתובת..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="border-border pr-10"
+              />
             </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-slate-600">תצוגה:</span>
-              <Button
-                variant={viewMode === 'list' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('list')}
-                style={viewMode === 'list' ? { backgroundColor: '#00214d' } : {}}
-              >
-                <List className="ml-1 h-4 w-4" /> רשימה
-              </Button>
-
-              <Button
-                variant={viewMode === 'status' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('status')}
-                style={viewMode === 'status' ? { backgroundColor: '#00214d' } : {}}
-              >
-                <BarChart3 className="ml-1 h-4 w-4" /> לפי סטטוס
-              </Button>
-
-              <Button
-                variant={viewMode === 'clients' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('clients')}
-                style={viewMode === 'clients' ? { backgroundColor: '#00214d' } : {}}
-              >
-                <UsersIcon className="ml-1 h-4 w-4" /> לפי לקוחות
-              </Button>
-
-              <Button
-                variant={viewMode === 'date' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setViewMode('date')}
-                style={viewMode === 'date' ? { backgroundColor: '#00214d' } : {}}
-              >
-                <ClockIcon className="ml-1 h-4 w-4" /> לפי תאריך
-              </Button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <span className="text-sm font-medium text-muted-foreground">תצוגה:</span>
+              <div className="rounded-xl bg-muted/30 p-1 dark:bg-muted/20">
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { key: 'list', label: 'רשימה', icon: List },
+                    { key: 'status', label: 'לפי סטטוס', icon: BarChart3 },
+                    { key: 'clients', label: 'לפי לקוחות', icon: UsersIcon },
+                    { key: 'date', label: 'לפי תאריך', icon: ClockIcon },
+                  ].map((tab) => {
+                    const isActive = viewMode === tab.key;
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setViewMode(tab.key)}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                          isActive
+                            ? 'bg-[#00214d] text-white shadow-sm hover:bg-[#00214d]/90'
+                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                        }`}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>

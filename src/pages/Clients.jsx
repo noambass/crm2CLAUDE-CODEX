@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Search, Plus, Phone, MapPin, FileText, Briefcase, Trash2, LayoutGrid, Rows3 } from 'lucide-react';
+import { Users, Search, Plus, Phone, MapPin, FileText, Briefcase, Trash2, LayoutGrid, Rows3, User, Building2, Bath } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/lib/AuthContext';
 import { deleteClient, listClientProfiles, getAccountLabel } from '@/data/clientsRepo';
@@ -22,10 +22,10 @@ const STATUS_BADGE = {
 };
 
 const TYPE_TABS = [
-  { key: 'all', label: 'הכול' },
-  { key: 'private', label: 'פרטי' },
-  { key: 'company', label: 'חברה' },
-  { key: 'bath_company', label: 'חברת אמבטיות' },
+  { key: 'all', label: 'הכול', icon: Users },
+  { key: 'private', label: 'פרטי', icon: User },
+  { key: 'company', label: 'חברה', icon: Building2 },
+  { key: 'bath_company', label: 'חברת אמבטיות', icon: Bath },
 ];
 
 const DELETE_UNDO_MS = 5000;
@@ -182,22 +182,36 @@ export default function Clients() {
 
       <Card className="border-0 shadow-sm">
         <CardContent className="space-y-4 p-4">
-          <div className="flex flex-wrap gap-2">
-            {TYPE_TABS.map((tab) => {
-              const isActive = typeFilter === tab.key;
-              return (
-                <Button
-                  key={tab.key}
-                  type="button"
-                  variant={isActive ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setTypeFilter(tab.key)}
-                  className={isActive ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
-                >
-                  {tab.label} ({typeCounts[tab.key] || 0})
-                </Button>
-              );
-            })}
+          <div className="rounded-xl bg-muted/30 p-1 dark:bg-muted/20">
+            <div className="flex flex-wrap gap-1">
+              {TYPE_TABS.map((tab) => {
+                const isActive = typeFilter === tab.key;
+                const count = typeCounts[tab.key] || 0;
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setTypeFilter(tab.key)}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                      isActive
+                        ? 'bg-[#00214d] text-white shadow-sm hover:bg-[#00214d]/90'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{tab.label}</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums ${
+                        isActive ? 'bg-white/25' : 'bg-muted'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
