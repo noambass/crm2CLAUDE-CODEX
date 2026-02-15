@@ -117,8 +117,8 @@ export default function Jobs() {
 
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-slate-600">תצוגה:</span>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+              <span className="flex-shrink-0 text-sm text-slate-600">תצוגה:</span>
               <Button
                 variant={viewMode === 'list' ? 'default' : 'outline'}
                 size="sm"

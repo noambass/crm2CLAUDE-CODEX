@@ -259,36 +259,52 @@ export default function Settings() {
               ) : (
                 <div className="space-y-3">
                   {employees.map((employee) => (
-                    <div 
+                    <div
                       key={employee.id}
-                      className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors"
+                      className="flex items-start gap-3 rounded-xl bg-slate-50 p-3 transition-colors hover:bg-slate-100 sm:items-center sm:gap-4 sm:p-4"
                     >
-                      <Avatar className="h-12 w-12">
+                      <Avatar className="h-10 w-10 flex-shrink-0 sm:h-12 sm:w-12">
                         <AvatarFallback className="bg-emerald-100 text-emerald-700">
                           {employee.full_name?.charAt(0)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1">
                         <h4 className="font-semibold text-slate-800">{employee.full_name}</h4>
                         <p className="text-sm text-slate-500" dir="ltr">{employee.phone}</p>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5 sm:hidden">
+                          <Badge variant="outline" className={
+                            employee.role === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                            employee.role === 'technician' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                            'bg-slate-100 text-slate-700 border-slate-200'
+                          }>
+                            {roleLabels[employee.role]}
+                          </Badge>
+                          <Badge variant="outline" className={
+                            employee.status === 'active'
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                          }>
+                            {employee.status === 'active' ? 'פעיל' : 'לא פעיל'}
+                          </Badge>
+                        </div>
                       </div>
-                      <Badge variant="outline" className={
+                      <Badge variant="outline" className={`hidden sm:inline-flex ${
                         employee.role === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200' :
                         employee.role === 'technician' ? 'bg-blue-100 text-blue-700 border-blue-200' :
                         'bg-slate-100 text-slate-700 border-slate-200'
-                      }>
+                      }`}>
                         {roleLabels[employee.role]}
                       </Badge>
-                      <Badge variant="outline" className={
-                        employee.status === 'active' 
+                      <Badge variant="outline" className={`hidden sm:inline-flex ${
+                        employee.status === 'active'
                           ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                           : 'bg-slate-100 text-slate-500 border-slate-200'
-                      }>
+                      }`}>
                         {employee.status === 'active' ? 'פעיל' : 'לא פעיל'}
                       </Badge>
                       <DropdownMenu dir="rtl">
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" className="flex-shrink-0">
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -297,7 +313,7 @@ export default function Settings() {
                             <Edit className="w-4 h-4 ml-2" />
                             עריכה
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             onClick={() => {
                               setEmployeeToDelete(employee);
                               setDeleteEmployeeDialogOpen(true);

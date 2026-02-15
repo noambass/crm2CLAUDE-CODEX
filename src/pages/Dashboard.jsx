@@ -197,12 +197,12 @@ export default function Dashboard() {
       </div>
 
       <Card className="border-0 shadow-sm">
-        <CardContent className="flex items-center justify-between gap-4 p-4">
+        <CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="flex items-center gap-2 text-slate-700">
-            <TrendingUp className="h-5 w-5 text-blue-600" />
-            <span>הכנסות חודשיות משוערות (כולל מע"מ)</span>
+            <TrendingUp className="h-5 w-5 flex-shrink-0 text-blue-600" />
+            <span className="text-sm sm:text-base">הכנסות חודשיות משוערות (כולל מע"מ)</span>
           </div>
-          <span className="text-xl font-bold text-blue-700">₪{stats.monthlyRevenue.toFixed(2)}</span>
+          <span className="text-xl font-bold text-blue-700" dir="ltr">₪{stats.monthlyRevenue.toFixed(2)}</span>
         </CardContent>
       </Card>
 

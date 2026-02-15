@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import GooglePlacesInput from '@/components/shared/GooglePlacesInput';
 import { isStrictIsraeliAddressFormat, normalizeAddressText } from '@/lib/geo/coordsPolicy';
+import { useIsMobile } from '@/lib/ui/useIsMobile';
 import {
   Select,
   SelectContent,
@@ -40,6 +41,7 @@ export default function ClientForm() {
   const queryClient = useQueryClient();
   const { id: routeAccountId } = useParams();
   const { user, isLoadingAuth } = useAuth();
+  const isMobile = useIsMobile();
 
   const urlParams = new URLSearchParams(window.location.search);
   const accountId = routeAccountId || urlParams.get('id');
@@ -166,7 +168,7 @@ export default function ClientForm() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div dir="rtl" className="mx-auto max-w-3xl space-y-6 p-4 lg:p-8">
+    <div dir="rtl" className="mx-auto max-w-3xl space-y-6 p-4 pb-32 lg:p-8 lg:pb-8">
       <div className="mb-8 flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
           <ArrowRight className="h-5 w-5" />
@@ -177,7 +179,7 @@ export default function ClientForm() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form id="client-form" onSubmit={handleSubmit} className="space-y-6">
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">פרטים בסיסיים</CardTitle>
@@ -292,31 +294,68 @@ export default function ClientForm() {
           </CardContent>
         </Card>
 
-        <div className="flex gap-3 pt-2">
-          <Button
-            data-testid="client-save-button"
-            type="submit"
-            disabled={saving}
-            style={{ backgroundColor: '#00214d' }}
-            className="flex-1 hover:opacity-90"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                שומר...
-              </>
-            ) : (
-              <>
-                <Save className="ml-2 h-4 w-4" />
-                {isEditing ? 'שמור שינויים' : 'צור לקוח'}
-              </>
-            )}
-          </Button>
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
-            ביטול
-          </Button>
-        </div>
+        {!isMobile ? (
+          <div className="flex gap-3 pt-2">
+            <Button
+              data-testid="client-save-button"
+              type="submit"
+              disabled={saving}
+              style={{ backgroundColor: '#00214d' }}
+              className="flex-1 hover:opacity-90"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  שומר...
+                </>
+              ) : (
+                <>
+                  <Save className="ml-2 h-4 w-4" />
+                  {isEditing ? 'שמור שינויים' : 'צור לקוח'}
+                </>
+              )}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+              ביטול
+            </Button>
+          </div>
+        ) : null}
       </form>
+
+      {isMobile ? (
+        <div
+          className="fixed inset-x-0 z-40 border-t border-slate-200 bg-white/95 p-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95"
+          style={{
+            bottom: 'calc(4.7rem + env(safe-area-inset-bottom))',
+            paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))',
+          }}
+        >
+          <div className="mx-auto flex max-w-md items-center gap-2">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => navigate(-1)} disabled={saving}>
+              ביטול
+            </Button>
+            <Button
+              data-testid="client-save-button"
+              type="submit"
+              form="client-form"
+              disabled={saving}
+              className="flex-1 bg-[#00214d] text-white hover:bg-[#00214d]/90"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  שומר...
+                </>
+              ) : (
+                <>
+                  <Save className="ml-2 h-4 w-4" />
+                  {isEditing ? 'שמור' : 'צור'}
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

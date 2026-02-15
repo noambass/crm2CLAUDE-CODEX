@@ -302,20 +302,31 @@ export default function Clients() {
                       </div>
                     </button>
 
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => navigate(createPageUrl(`QuoteForm?account_id=${account.id}`))}>
-                        <FileText className="ml-1 h-4 w-4" />
-                        הצעה חדשה
+                    <div className="flex flex-shrink-0 flex-wrap gap-1.5 sm:gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={() => navigate(createPageUrl(`QuoteForm?account_id=${account.id}`))} className="px-2 sm:px-3">
+                        <FileText className="h-4 w-4 sm:ml-1" />
+                        <span className="hidden sm:inline">הצעה חדשה</span>
                       </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => navigate(createPageUrl(`JobForm?account_id=${account.id}`))}>
-                        <Briefcase className="ml-1 h-4 w-4" />
-                        עבודה חדשה
+                      <Button type="button" size="sm" variant="outline" onClick={() => navigate(createPageUrl(`JobForm?account_id=${account.id}`))} className="px-2 sm:px-3">
+                        <Briefcase className="h-4 w-4 sm:ml-1" />
+                        <span className="hidden sm:inline">עבודה חדשה</span>
                       </Button>
+                      {contact?.phone ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="px-2 sm:hidden"
+                          onClick={(e) => { e.stopPropagation(); window.open(`tel:${contact.phone}`); }}
+                        >
+                          <Phone className="h-4 w-4" />
+                        </Button>
+                      ) : null}
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="text-red-600"
+                        className="px-2 text-red-600"
                         onClick={() => scheduleDelete(profile)}
                       >
                         <Trash2 className="h-4 w-4" />

@@ -290,7 +290,7 @@ export default function QuoteDetails() {
     <div dir="rtl" className="mx-auto max-w-6xl space-y-6 p-4 lg:p-8">
       <Card className="overflow-hidden border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
         <CardContent className="p-0">
-          <div className="flex flex-wrap items-start gap-3 border-b border-slate-100 p-5 dark:border-slate-800">
+          <div className="flex flex-wrap items-start gap-3 border-b border-slate-100 p-4 sm:p-5 dark:border-slate-800">
             <Button variant="ghost" size="icon" onClick={() => navigate(createPageUrl('Quotes'))} className="rounded-full">
               <ArrowRight className="h-5 w-5" />
             </Button>
@@ -328,7 +328,7 @@ export default function QuoteDetails() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-4">
             <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/70">
               <p className="text-xs text-slate-500 dark:text-slate-300">מספר הצעה</p>
               <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{quoteNumber}</p>
@@ -400,17 +400,17 @@ export default function QuoteDetails() {
                           </div>
                         </div>
 
-                        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800">
+                        <div className="mt-3 grid grid-cols-3 gap-2">
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-xs sm:px-3 sm:text-sm dark:border-slate-700 dark:bg-slate-800">
                             <span className="text-slate-500 dark:text-slate-300">כמות: </span>
                             <span className="font-medium text-slate-800 dark:text-slate-100">{qty}</span>
                           </div>
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800" dir="ltr">
-                            <span className="text-slate-500 dark:text-slate-300">מחיר יחידה: </span>
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-xs sm:px-3 sm:text-sm dark:border-slate-700 dark:bg-slate-800" dir="ltr">
+                            <span className="text-slate-500 dark:text-slate-300">יחידה: </span>
                             <span className="font-medium text-slate-800 dark:text-slate-100">₪{unit.toFixed(2)}</span>
                           </div>
-                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800" dir="ltr">
-                            <span className="text-slate-500 dark:text-slate-300">סה"כ שורה: </span>
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-xs sm:px-3 sm:text-sm dark:border-slate-700 dark:bg-slate-800" dir="ltr">
+                            <span className="text-slate-500 dark:text-slate-300">סה"כ: </span>
                             <span className="font-medium text-slate-800 dark:text-slate-100">₪{lineTotal.toFixed(2)}</span>
                           </div>
                         </div>
@@ -418,19 +418,19 @@ export default function QuoteDetails() {
                     );
                   })}
 
-                  <div className="rounded-2xl border border-[#00214d]/20 bg-gradient-to-br from-[#001335] to-[#00214d] p-4 text-white shadow-lg dark:border-cyan-500/30 dark:from-slate-900 dark:to-[#1b4f84]">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <div className="rounded-xl bg-white/10 px-3 py-2">
-                        <p className="text-xs text-blue-100">לפני מע"מ</p>
-                        <p dir="ltr" className="mt-1 text-lg font-semibold">₪{subtotal.toFixed(2)}</p>
+                  <div className="rounded-2xl border border-[#00214d]/20 bg-gradient-to-br from-[#001335] to-[#00214d] p-3 text-white shadow-lg sm:p-4 dark:border-cyan-500/30 dark:from-slate-900 dark:to-[#1b4f84]">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                      <div className="rounded-xl bg-white/10 px-2 py-2 sm:px-3">
+                        <p className="text-[10px] text-blue-100 sm:text-xs">לפני מע"מ</p>
+                        <p dir="ltr" className="mt-1 text-sm font-semibold sm:text-lg">₪{subtotal.toFixed(2)}</p>
                       </div>
-                      <div className="rounded-xl bg-white/10 px-3 py-2">
-                        <p className="text-xs text-blue-100">מע"מ (18%)</p>
-                        <p dir="ltr" className="mt-1 text-lg font-semibold">₪{vatAmount.toFixed(2)}</p>
+                      <div className="rounded-xl bg-white/10 px-2 py-2 sm:px-3">
+                        <p className="text-[10px] text-blue-100 sm:text-xs">מע"מ (18%)</p>
+                        <p dir="ltr" className="mt-1 text-sm font-semibold sm:text-lg">₪{vatAmount.toFixed(2)}</p>
                       </div>
-                      <div className="rounded-xl bg-white/20 px-3 py-2 ring-1 ring-white/20">
-                        <p className="text-xs text-blue-100">סה"כ כולל מע"מ</p>
-                        <p dir="ltr" className="mt-1 text-xl font-bold">₪{grossTotal.toFixed(2)}</p>
+                      <div className="rounded-xl bg-white/20 px-2 py-2 ring-1 ring-white/20 sm:px-3">
+                        <p className="text-[10px] text-blue-100 sm:text-xs">סה"כ כולל מע"מ</p>
+                        <p dir="ltr" className="mt-1 text-base font-bold sm:text-xl">₪{grossTotal.toFixed(2)}</p>
                       </div>
                     </div>
                   </div>

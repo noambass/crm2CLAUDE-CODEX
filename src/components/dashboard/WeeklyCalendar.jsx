@@ -54,24 +54,25 @@ export default function WeeklyCalendar() {
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <CalendarIcon className="h-5 w-5 text-emerald-500" />
             לוח שבועי
           </CardTitle>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <Button
               type="button"
               variant="ghost"
               size="icon"
+              className="h-8 w-8 sm:h-9 sm:w-9"
               onClick={() => setWeekOffset((prev) => prev - 1)}
               aria-label="שבוע קודם"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
 
-            <span className="min-w-36 text-center text-sm text-slate-600">
+            <span className="min-w-28 text-center text-sm text-slate-600 sm:min-w-36">
               {format(weekDays[0], 'dd/MM')} - {format(weekDays[6], 'dd/MM')}
             </span>
 
@@ -79,6 +80,7 @@ export default function WeeklyCalendar() {
               type="button"
               variant="ghost"
               size="icon"
+              className="h-8 w-8 sm:h-9 sm:w-9"
               onClick={() => setWeekOffset((prev) => prev + 1)}
               aria-label="שבוע הבא"
             >
@@ -93,7 +95,7 @@ export default function WeeklyCalendar() {
       </CardHeader>
 
       <CardContent>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
+        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar md:grid md:grid-cols-7 md:overflow-visible md:pb-0">
           {weekDays.map((day) => {
             const dayJobs = jobs.filter(
               (job) => job.scheduled_start_at && isSameDay(new Date(job.scheduled_start_at), day)
@@ -103,7 +105,7 @@ export default function WeeklyCalendar() {
             return (
               <div
                 key={day.toISOString()}
-                className={`rounded-lg border p-2 ${
+                className={`min-w-[7.5rem] flex-shrink-0 rounded-lg border p-2 md:min-w-0 md:flex-shrink ${
                   isToday ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'
                 }`}
               >

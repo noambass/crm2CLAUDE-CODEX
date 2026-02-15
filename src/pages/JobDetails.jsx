@@ -463,9 +463,9 @@ export default function JobDetails() {
         </div>
       </div>
 
-      <Card className="sticky top-20 z-20 border border-slate-200 bg-white/95 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
+      <Card className="sticky top-[3.75rem] z-20 border border-slate-200 bg-white/95 shadow-sm backdrop-blur lg:top-20 dark:border-slate-800 dark:bg-slate-900/95">
         <CardContent className="p-3">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Button
               type="button"
               onClick={openScheduleDialog}
@@ -473,8 +473,8 @@ export default function JobDetails() {
               disabled={completing}
               data-testid="job-details-schedule-button"
             >
-              <CalendarClock className="ml-2 h-4 w-4" />
-              תזמן
+              <CalendarClock className="ml-1 h-4 w-4 sm:ml-2" />
+              <span className="truncate">תזמן</span>
             </Button>
 
             <Button
@@ -486,8 +486,8 @@ export default function JobDetails() {
               }}
               data-testid="job-details-waze-button"
             >
-              <Route className="ml-2 h-4 w-4" />
-              Waze
+              <Route className="ml-1 h-4 w-4 sm:ml-2" />
+              <span className="truncate">Waze</span>
             </Button>
 
             <Button
@@ -498,8 +498,8 @@ export default function JobDetails() {
               className={job.status === 'done' ? '' : 'bg-emerald-600 text-white hover:bg-emerald-700'}
               data-testid="job-details-mark-done-button"
             >
-              <CheckCircle2 className="ml-2 h-4 w-4" />
-              {job.status === 'done' ? 'בוצע' : completing ? 'מסמן...' : 'סמן כבוצע'}
+              <CheckCircle2 className="ml-1 h-4 w-4 sm:ml-2" />
+              <span className="truncate">{job.status === 'done' ? 'בוצע' : completing ? 'מסמן...' : 'סמן כבוצע'}</span>
             </Button>
 
             <Button
@@ -509,8 +509,8 @@ export default function JobDetails() {
               disabled={completing}
               data-testid="job-details-edit-button"
             >
-              <Edit className="ml-2 h-4 w-4" />
-              ערוך עבודה
+              <Edit className="ml-1 h-4 w-4 sm:ml-2" />
+              <span className="truncate">ערוך</span>
             </Button>
           </div>
 
@@ -581,17 +581,17 @@ export default function JobDetails() {
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800">
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <div className="rounded-lg bg-slate-50 px-2 py-2 text-xs sm:px-3 sm:text-sm dark:bg-slate-800">
                           <span className="text-slate-500 dark:text-slate-300">כמות: </span>
                           <span className="font-medium text-slate-800 dark:text-slate-100">{quantity}</span>
                         </div>
-                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800" dir="ltr">
-                          <span className="text-slate-500 dark:text-slate-300">מחיר יחידה: </span>
+                        <div className="rounded-lg bg-slate-50 px-2 py-2 text-xs sm:px-3 sm:text-sm dark:bg-slate-800" dir="ltr">
+                          <span className="text-slate-500 dark:text-slate-300">יחידה: </span>
                           <span className="font-medium text-slate-800 dark:text-slate-100">₪{formatMoney(unitPrice)}</span>
                         </div>
-                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800" dir="ltr">
-                          <span className="text-slate-500 dark:text-slate-300">סה"כ שורה: </span>
+                        <div className="rounded-lg bg-slate-50 px-2 py-2 text-xs sm:px-3 sm:text-sm dark:bg-slate-800" dir="ltr">
+                          <span className="text-slate-500 dark:text-slate-300">סה"כ: </span>
                           <span className="font-medium text-slate-800 dark:text-slate-100">₪{formatMoney(lineTotal)}</span>
                         </div>
                       </div>
@@ -599,19 +599,19 @@ export default function JobDetails() {
                   );
                 })}
 
-                <div className="rounded-2xl border border-[#00214d]/20 bg-gradient-to-br from-[#001335] to-[#00214d] p-4 text-white shadow-lg">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl bg-white/10 px-3 py-2">
-                      <p className="text-xs text-blue-100">לפני מע"מ</p>
-                      <p dir="ltr" className="mt-1 text-lg font-semibold">₪{formatMoney(subtotal)}</p>
+                <div className="rounded-2xl border border-[#00214d]/20 bg-gradient-to-br from-[#001335] to-[#00214d] p-3 text-white shadow-lg sm:p-4">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="rounded-xl bg-white/10 px-2 py-2 sm:px-3">
+                      <p className="text-[10px] text-blue-100 sm:text-xs">לפני מע"מ</p>
+                      <p dir="ltr" className="mt-1 text-sm font-semibold sm:text-lg">₪{formatMoney(subtotal)}</p>
                     </div>
-                    <div className="rounded-xl bg-white/10 px-3 py-2">
-                      <p className="text-xs text-blue-100">מע"מ (18%)</p>
-                      <p dir="ltr" className="mt-1 text-lg font-semibold">₪{formatMoney(vatAmount)}</p>
+                    <div className="rounded-xl bg-white/10 px-2 py-2 sm:px-3">
+                      <p className="text-[10px] text-blue-100 sm:text-xs">מע"מ (18%)</p>
+                      <p dir="ltr" className="mt-1 text-sm font-semibold sm:text-lg">₪{formatMoney(vatAmount)}</p>
                     </div>
-                    <div className="rounded-xl bg-white/20 px-3 py-2 ring-1 ring-white/20">
-                      <p className="text-xs text-blue-100">סה"כ כולל מע"מ</p>
-                      <p dir="ltr" className="mt-1 text-xl font-bold">₪{formatMoney(totalWithVat)}</p>
+                    <div className="rounded-xl bg-white/20 px-2 py-2 ring-1 ring-white/20 sm:px-3">
+                      <p className="text-[10px] text-blue-100 sm:text-xs">סה"כ כולל מע"מ</p>
+                      <p dir="ltr" className="mt-1 text-base font-bold sm:text-xl">₪{formatMoney(totalWithVat)}</p>
                     </div>
                   </div>
                 </div>
