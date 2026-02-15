@@ -67,6 +67,50 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function sanitizeNumericInput(rawValue, { allowDecimal = false } = {}) {
+  let next = String(rawValue ?? '').trim().replace(',', '.');
+  next = next.replace(/[^\d.]/g, '');
+  if (!allowDecimal) {
+    next = next.replace(/\./g, '');
+  } else {
+    const firstDot = next.indexOf('.');
+    if (firstDot !== -1) {
+      next = `${next.slice(0, firstDot + 1)}${next.slice(firstDot + 1).replace(/\./g, '')}`;
+    }
+  }
+
+  if (!next) return '';
+  if (allowDecimal && next.startsWith('.')) next = `0${next}`;
+
+  const [integerRaw, fraction] = next.split('.');
+  const integer = (integerRaw || '0').replace(/^0+(?=\d)/, '');
+
+  if (!allowDecimal || fraction == null) return integer;
+  return `${integer}.${fraction}`;
+}
+
+function normalizeNumericInput(rawValue, { allowDecimal = false } = {}) {
+  const sanitized = sanitizeNumericInput(rawValue, { allowDecimal });
+  if (!sanitized) return '0';
+
+  const numeric = Number(sanitized);
+  if (!Number.isFinite(numeric)) return '0';
+
+  const clamped = Math.max(0, numeric);
+  if (allowDecimal) return String(clamped);
+  return String(Math.trunc(clamped));
+}
+
+function handleNumericInputKeyDown(event) {
+  if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'a') {
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.currentTarget.select === 'function') {
+      event.currentTarget.select();
+    }
+  }
+}
+
 function formatMoney(value) {
   return Number(value || 0).toLocaleString('he-IL', {
     minimumFractionDigits: 2,
@@ -108,13 +152,11 @@ export default function QuoteForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState([]);
-  const [accountAddresses, setAccountAddresses] = useState({});
   const [accountPopoverOpen, setAccountPopoverOpen] = useState(false);
   const [createClientDialogOpen, setCreateClientDialogOpen] = useState(false);
   const [errors, setErrors] = useState({});
   const [addressAssist, setAddressAssist] = useState('');
   const [quoteCoordinates, setQuoteCoordinates] = useState({ lat: null, lng: null });
-  const [addressEditedManually, setAddressEditedManually] = useState(false);
 
   const [formData, setFormData] = useState({
     account_id: preselectedAccountId,
@@ -139,31 +181,18 @@ export default function QuoteForm() {
       setLoading(true);
 
       try {
-        const [accountsRes, contactsRes, quoteRes] = await Promise.all([
+        const [accountsRes, quoteRes] = await Promise.all([
           supabase.from('accounts').select('id, account_name, client_type').order('created_at', { ascending: false }),
-          supabase.from('contacts').select('account_id, address_text, is_primary, created_at').order('created_at', { ascending: true }),
           isEditing && quoteId
             ? getQuote(quoteId).then((data) => ({ data, error: null })).catch((error) => ({ data: null, error }))
             : Promise.resolve({ data: null, error: null }),
         ]);
 
         if (accountsRes.error) throw accountsRes.error;
-        if (contactsRes.error) throw contactsRes.error;
         if (quoteRes.error) throw quoteRes.error;
 
         const allAccounts = accountsRes.data || [];
         setAccounts(allAccounts);
-
-        const nextAccountAddresses = {};
-        (contactsRes.data || []).forEach((contact) => {
-          if (!contact.account_id || !contact.address_text) return;
-          const normalizedContactAddress = normalizeAddressText(contact.address_text);
-          if (!normalizedContactAddress) return;
-          if (!nextAccountAddresses[contact.account_id] || contact.is_primary) {
-            nextAccountAddresses[contact.account_id] = normalizedContactAddress;
-          }
-        });
-        setAccountAddresses(nextAccountAddresses);
 
         if (isEditing && quoteId && quoteRes.data) {
           const quoteData = quoteRes.data;
@@ -209,13 +238,12 @@ export default function QuoteForm() {
             lat: isUsableJobCoords(parsedLat, parsedLng) ? parsedLat : null,
             lng: isUsableJobCoords(parsedLat, parsedLng) ? parsedLng : null,
           });
-          setAddressEditedManually(false);
 
           const items = Array.isArray(quoteData.quote_items) && quoteData.quote_items.length > 0
             ? quoteData.quote_items.map((item) => ({
               id: item.id || crypto.randomUUID(),
               description: item.description || 'שירות',
-              quantity: toNumber(item.quantity) || 1,
+              quantity: Math.max(0, toNumber(item.quantity)),
               unit_price: toNumber(item.unit_price),
             }))
             : [EMPTY_LINE_ITEM()];
@@ -231,7 +259,6 @@ export default function QuoteForm() {
               ...prev,
               account_id: selected.id,
               account_name: selected.account_name || '',
-              address_text: prev.address_text || nextAccountAddresses[selected.id] || '',
             }));
           }
         }
@@ -256,7 +283,6 @@ export default function QuoteForm() {
   function handleAddressTextChange(addressText, { isManual, autofixed } = {}) {
     setFormData((prev) => ({ ...prev, address_text: addressText }));
     if (isManual) {
-      setAddressEditedManually(true);
       setQuoteCoordinates({ lat: null, lng: null });
     }
     if (autofixed) {
@@ -271,7 +297,6 @@ export default function QuoteForm() {
 
   function handleAddressPlaceSelected({ addressText, lat, lng }) {
     setFormData((prev) => ({ ...prev, address_text: addressText || prev.address_text }));
-    setAddressEditedManually(false);
     setAddressAssist('');
     const parsedLat = parseCoord(lat);
     const parsedLng = parseCoord(lng);
@@ -282,42 +307,23 @@ export default function QuoteForm() {
   }
 
   function handleAccountSelect(account) {
-    const suggestedAddress = accountAddresses[account.id] || '';
-    const shouldAutofillAddress = !formData.address_text || !addressEditedManually;
-
     setFormData((prev) => ({
       ...prev,
       account_id: account.id,
       account_name: account.account_name || '',
-      address_text: shouldAutofillAddress ? suggestedAddress : prev.address_text,
     }));
-
-    if (shouldAutofillAddress) {
-      setQuoteCoordinates({ lat: null, lng: null });
-      setAddressEditedManually(false);
-    }
 
     setErrors((prev) => ({ ...prev, account_id: null }));
     setAccountPopoverOpen(false);
   }
 
   function handleClientCreated(newAccount) {
-    const suggestedAddress = newAccount.primary_contact?.address_text || '';
-    const shouldAutofillAddress = !formData.address_text || !addressEditedManually;
-
     setAccounts((prev) => [newAccount, ...prev]);
-    setAccountAddresses((prev) => ({ ...prev, [newAccount.id]: suggestedAddress }));
     setFormData((prev) => ({
       ...prev,
       account_id: newAccount.id,
       account_name: newAccount.account_name,
-      address_text: shouldAutofillAddress ? suggestedAddress : prev.address_text,
     }));
-
-    if (shouldAutofillAddress) {
-      setQuoteCoordinates({ lat: null, lng: null });
-      setAddressEditedManually(false);
-    }
 
     setErrors((prev) => ({ ...prev, account_id: null }));
     setCreateClientDialogOpen(false);
@@ -325,6 +331,18 @@ export default function QuoteForm() {
 
   function updateLineItem(id, field, value) {
     setLineItems((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
+  }
+
+  function updateLineNumericField(id, field, rawValue) {
+    const allowDecimal = field === 'unit_price';
+    const sanitizedValue = sanitizeNumericInput(rawValue, { allowDecimal });
+    updateLineItem(id, field, sanitizedValue);
+  }
+
+  function normalizeLineNumericField(id, field, rawValue) {
+    const allowDecimal = field === 'unit_price';
+    const normalizedValue = normalizeNumericInput(rawValue, { allowDecimal });
+    updateLineItem(id, field, normalizedValue);
   }
 
   function addLineItem() {
@@ -372,8 +390,8 @@ export default function QuoteForm() {
         hasLineError = true;
       }
 
-      if (toNumber(item.quantity) <= 0) {
-        itemErrors.quantity = 'כמות חייבת להיות גדולה מ-0';
+      if (toNumber(item.quantity) < 0) {
+        itemErrors.quantity = 'כמות לא יכולה להיות שלילית';
         hasLineError = true;
       }
 
@@ -470,7 +488,7 @@ export default function QuoteForm() {
         scheduledStartAt,
         items: lineItems.map((item) => ({
           description: item.description.trim(),
-          quantity: Math.max(1, toNumber(item.quantity)),
+          quantity: Math.max(0, toNumber(item.quantity)),
           unitPrice: Math.max(0, toNumber(item.unit_price)),
         })),
       });
@@ -730,7 +748,7 @@ export default function QuoteForm() {
             <CardContent className="space-y-4">
               {lineItems.map((item, index) => {
                 const lineErrors = errors.lineItems?.[index] || {};
-                const quantity = Math.max(1, toNumber(item.quantity));
+                const quantity = Math.max(0, toNumber(item.quantity));
                 const unitPrice = Math.max(0, toNumber(item.unit_price));
                 const lineTotal = quantity * unitPrice;
                 const unitWithVat = calculateGross(unitPrice);
@@ -769,11 +787,14 @@ export default function QuoteForm() {
                         <Input
                           data-testid={`quote-line-quantity-${index}`}
                           type="number"
-                          min="1"
+                          min="0"
                           step="1"
                           value={item.quantity}
-                          onChange={(event) => updateLineItem(item.id, 'quantity', event.target.value)}
+                          onChange={(event) => updateLineNumericField(item.id, 'quantity', event.target.value)}
+                          onBlur={(event) => normalizeLineNumericField(item.id, 'quantity', event.target.value)}
+                          onKeyDown={handleNumericInputKeyDown}
                           className={lineErrors.quantity ? 'border-red-500' : ''}
+                          inputMode="numeric"
                           dir="ltr"
                         />
                         {lineErrors.quantity ? <p className="text-xs text-red-600">{lineErrors.quantity}</p> : null}
@@ -787,8 +808,11 @@ export default function QuoteForm() {
                           min="0"
                           step="0.01"
                           value={item.unit_price}
-                          onChange={(event) => updateLineItem(item.id, 'unit_price', event.target.value)}
+                          onChange={(event) => updateLineNumericField(item.id, 'unit_price', event.target.value)}
+                          onBlur={(event) => normalizeLineNumericField(item.id, 'unit_price', event.target.value)}
+                          onKeyDown={handleNumericInputKeyDown}
                           className={lineErrors.unit_price ? 'border-red-500' : ''}
+                          inputMode="decimal"
                           dir="ltr"
                         />
                         {lineErrors.unit_price ? <p className="text-xs text-red-600">{lineErrors.unit_price}</p> : null}

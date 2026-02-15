@@ -151,7 +151,7 @@ export default function JobDetails() {
           accountId
             ? supabase
               .from('contacts')
-              .select('id, full_name, phone, email, address_text, is_primary, created_at')
+              .select('id, full_name, phone, email, is_primary, created_at')
               .eq('account_id', accountId)
               .order('is_primary', { ascending: false })
               .order('created_at', { ascending: true })
@@ -630,6 +630,11 @@ export default function JobDetails() {
               <p className="mt-1 font-medium text-slate-800 dark:text-slate-100">{accountName}</p>
             </div>
 
+            <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
+              <p className="text-xs text-slate-500 dark:text-slate-300">כתובת עבודה</p>
+              <p className="mt-1 font-medium text-slate-800 dark:text-slate-100">{job.address_text || 'לא הוזנה כתובת עבודה'}</p>
+            </div>
+
             {clientPrimaryContact?.phone ? (
               <a
                 href={`tel:${clientPrimaryContact.phone}`}
@@ -658,13 +663,6 @@ export default function JobDetails() {
                   {clientPrimaryContact.email}
                 </span>
               </a>
-            ) : null}
-
-            {clientPrimaryContact?.address_text ? (
-              <div className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">
-                <p className="text-xs text-slate-500 dark:text-slate-300">כתובת לקוח</p>
-                <p className="mt-1 font-medium text-slate-800 dark:text-slate-100">{clientPrimaryContact.address_text}</p>
-              </div>
             ) : null}
 
             <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800">

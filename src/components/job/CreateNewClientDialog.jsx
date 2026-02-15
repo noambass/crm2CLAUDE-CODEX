@@ -19,9 +19,10 @@ import {
 import { Loader2 } from 'lucide-react';
 import GooglePlacesInput from '@/components/shared/GooglePlacesInput';
 import { supabase } from '@/api/supabaseClient';
+import { geocodeAddress } from '@/data/mapRepo';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
-import { isStrictIsraeliAddressFormat, normalizeAddressText } from '@/lib/geo/coordsPolicy';
+import { isUsableJobCoords, normalizeAddressText, parseCoord } from '@/lib/geo/coordsPolicy';
 
 const CLIENT_TYPE_OPTIONS = [
   { value: 'private', label: 'לקוח פרטי' },
@@ -64,18 +65,28 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
     const accountName = formData.account_name.trim();
     const fullName = accountName;
     const normalizedAddress = normalizeAddressText(formData.address_text);
+    let shouldWarnMissingCoords = false;
 
     if (!accountName) {
       toast.error('חובה להזין שם לקוח');
       return;
     }
-    if (normalizedAddress && !isStrictIsraeliAddressFormat(normalizedAddress)) {
-      toast.error('פורמט כתובת לא תקין. יש להזין: רחוב ומספר, עיר');
-      return;
-    }
 
     setSaving(true);
     try {
+      if (normalizedAddress) {
+        try {
+          const geo = await geocodeAddress(normalizedAddress);
+          const lat = parseCoord(geo?.lat);
+          const lng = parseCoord(geo?.lng);
+          if (!isUsableJobCoords(lat, lng)) {
+            shouldWarnMissingCoords = true;
+          }
+        } catch {
+          shouldWarnMissingCoords = true;
+        }
+      }
+
       const { data: account, error: accountError } = await supabase
         .from('accounts')
         .insert([{
@@ -123,6 +134,9 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
 
       onOpenChange(false);
       toast.success('הלקוח נוצר בהצלחה');
+      if (shouldWarnMissingCoords) {
+        toast.warning('הכתובת נשמרה, אבל כרגע לא הצלחנו לאמת מיקום במפה.');
+      }
     } catch (error) {
       console.error('Error creating account/contact:', error);
       toast.error('שגיאה ביצירת לקוח', {
@@ -185,7 +199,8 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
               onAddressAutofix={({ normalized }) => setAddressAssist(`הכתובת תוקנה אוטומטית: ${normalized}`)}
               placeholder="הרצל 10, אשדוד"
             />
-            <p className="text-xs text-slate-500">פורמט מומלץ: רחוב ומספר, עיר. אפשר להקליד גם בלי פסיק.</p>
+            <p className="text-xs text-slate-500">אפשר להזין כתובת ידנית בכל פורמט. מומלץ: רחוב ומספר, עיר.</p>
+            <p className="text-xs text-slate-500">אם אימות המיקום לא יצליח, הלקוח עדיין יישמר ותוצג אזהרה.</p>
             {addressAssist ? <p className="text-xs text-emerald-700">{addressAssist}</p> : null}
           </div>
 

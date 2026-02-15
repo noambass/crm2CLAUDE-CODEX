@@ -7,7 +7,6 @@ import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { geocodeAddress } from '@/data/mapRepo';
 import {
-  isStrictIsraeliAddressFormat,
   isUsableJobCoords,
   normalizeAddressText,
   parseCoord,
@@ -75,6 +74,50 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function sanitizeNumericInput(rawValue, { allowDecimal = false } = {}) {
+  let next = String(rawValue ?? '').trim().replace(',', '.');
+  next = next.replace(/[^\d.]/g, '');
+  if (!allowDecimal) {
+    next = next.replace(/\./g, '');
+  } else {
+    const firstDot = next.indexOf('.');
+    if (firstDot !== -1) {
+      next = `${next.slice(0, firstDot + 1)}${next.slice(firstDot + 1).replace(/\./g, '')}`;
+    }
+  }
+
+  if (!next) return '';
+  if (allowDecimal && next.startsWith('.')) next = `0${next}`;
+
+  const [integerRaw, fraction] = next.split('.');
+  const integer = (integerRaw || '0').replace(/^0+(?=\d)/, '');
+
+  if (!allowDecimal || fraction == null) return integer;
+  return `${integer}.${fraction}`;
+}
+
+function normalizeNumericInput(rawValue, { allowDecimal = false } = {}) {
+  const sanitized = sanitizeNumericInput(rawValue, { allowDecimal });
+  if (!sanitized) return '0';
+
+  const numeric = Number(sanitized);
+  if (!Number.isFinite(numeric)) return '0';
+
+  const clamped = Math.max(0, numeric);
+  if (allowDecimal) return String(clamped);
+  return String(Math.trunc(clamped));
+}
+
+function handleNumericInputKeyDown(event) {
+  if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'a') {
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.currentTarget.select === 'function') {
+      event.currentTarget.select();
+    }
+  }
+}
+
 function normalizeContactFromDb(contact) {
   return {
     id: contact.id || crypto.randomUUID(),
@@ -122,14 +165,12 @@ export default function JobForm() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState([]);
-  const [accountAddresses, setAccountAddresses] = useState({});
   const [accountPopoverOpen, setAccountPopoverOpen] = useState(false);
   const [createClientDialogOpen, setCreateClientDialogOpen] = useState(false);
   const [additionalContactsOpen, setAdditionalContactsOpen] = useState(false);
   const [errors, setErrors] = useState({});
   const [addressAssist, setAddressAssist] = useState('');
   const [jobCoordinates, setJobCoordinates] = useState({ lat: null, lng: null });
-  const [addressEditedManually, setAddressEditedManually] = useState(false);
 
   const [formData, setFormData] = useState({
     account_id: preselectedAccountId,
@@ -154,35 +195,21 @@ export default function JobForm() {
 
     async function loadData() {
       try {
-        const [accountsRes, contactsRes, jobRes] = await Promise.all([
+        const [accountsRes, jobRes] = await Promise.all([
           supabase.from('accounts').select('id, account_name, client_type').order('created_at', { ascending: false }),
-          supabase.from('contacts').select('account_id, address_text, is_primary, created_at').order('created_at', { ascending: true }),
           isEditing
             ? supabase.from('jobs').select('*').eq('id', jobId).single()
             : Promise.resolve({ data: null, error: null }),
         ]);
 
         if (accountsRes.error) throw accountsRes.error;
-        if (contactsRes.error) throw contactsRes.error;
         if (jobRes.error) throw jobRes.error;
 
         const accountRows = accountsRes.data || [];
-        const contactsRows = contactsRes.data || [];
-        const nextAccountAddresses = {};
-
-        contactsRows.forEach((contact) => {
-          if (!contact.account_id || !contact.address_text) return;
-          const normalizedContactAddress = normalizeAddressText(contact.address_text);
-          if (!normalizedContactAddress) return;
-          if (!nextAccountAddresses[contact.account_id] || contact.is_primary) {
-            nextAccountAddresses[contact.account_id] = normalizedContactAddress;
-          }
-        });
 
         if (!mounted) return;
 
         setAccounts(accountRows);
-        setAccountAddresses(nextAccountAddresses);
 
         if (isEditing && jobRes.data) {
           const job = jobRes.data;
@@ -190,7 +217,7 @@ export default function JobForm() {
             ? job.line_items.map((item) => ({
               id: item.id || crypto.randomUUID(),
               description: item.description || 'שירות',
-              quantity: toNumber(item.quantity) || 1,
+              quantity: Math.max(0, toNumber(item.quantity)),
               unit_price: toNumber(item.unit_price),
             }))
             : [EMPTY_LINE()];
@@ -219,7 +246,6 @@ export default function JobForm() {
             lat: isUsableJobCoords(parsedLat, parsedLng) ? parsedLat : null,
             lng: isUsableJobCoords(parsedLat, parsedLng) ? parsedLng : null,
           });
-          setAddressEditedManually(false);
 
           const { data: contactsData, error: contactsError } = await supabase
             .from('job_contacts')
@@ -242,7 +268,6 @@ export default function JobForm() {
               ...prev,
               account_id: selected.id,
               account_name: selected.account_name,
-              address_text: prev.address_text || nextAccountAddresses[selected.id] || '',
             }));
           }
         }
@@ -277,12 +302,7 @@ export default function JobForm() {
     if (!formData.account_id) next.account_id = 'יש לבחור לקוח';
     if (!formData.title.trim()) next.title = 'כותרת עבודה היא שדה חובה';
 
-    const normalizedAddress = normalizeAddressText(formData.address_text);
-    if (normalizedAddress && !isStrictIsraeliAddressFormat(normalizedAddress)) {
-      next.address_text = 'יש להזין כתובת בפורמט: רחוב ומספר, עיר';
-    }
-
-    const validLines = lineItems.filter((line) => line.description.trim() && toNumber(line.quantity) > 0 && toNumber(line.unit_price) >= 0);
+    const validLines = lineItems.filter((line) => line.description.trim() && toNumber(line.quantity) >= 0 && toNumber(line.unit_price) >= 0);
     if (formData.scheduled_time && !isTenMinuteSlot(formData.scheduled_time)) {
       next.scheduled_time = 'יש לבחור שעה בקפיצות של 10 דקות';
     }
@@ -302,7 +322,6 @@ export default function JobForm() {
   function handleAddressTextChange(addressText, { isManual, autofixed } = {}) {
     setFormData((prev) => ({ ...prev, address_text: addressText }));
     if (isManual) {
-      setAddressEditedManually(true);
       setJobCoordinates({ lat: null, lng: null });
     }
     if (autofixed) {
@@ -317,7 +336,6 @@ export default function JobForm() {
 
   function handleAddressPlaceSelected({ addressText, lat, lng }) {
     setFormData((prev) => ({ ...prev, address_text: addressText || prev.address_text }));
-    setAddressEditedManually(false);
     setAddressAssist('');
     const parsedLat = parseCoord(lat);
     const parsedLng = parseCoord(lng);
@@ -328,42 +346,23 @@ export default function JobForm() {
   }
 
   function handleAccountSelect(account) {
-    const suggestedAddress = accountAddresses[account.id] || '';
-    const shouldAutofillAddress = !formData.address_text || !addressEditedManually;
-
     setFormData((prev) => ({
       ...prev,
       account_id: account.id,
       account_name: account.account_name,
-      address_text: shouldAutofillAddress ? suggestedAddress : prev.address_text,
     }));
-
-    if (shouldAutofillAddress) {
-      setJobCoordinates({ lat: null, lng: null });
-      setAddressEditedManually(false);
-    }
 
     setErrors((prev) => ({ ...prev, account_id: null }));
     setAccountPopoverOpen(false);
   }
 
   function handleClientCreated(newAccount) {
-    const suggestedAddress = newAccount.primary_contact?.address_text || '';
-    const shouldAutofillAddress = !formData.address_text || !addressEditedManually;
-
     setAccounts((prev) => [newAccount, ...prev]);
-    setAccountAddresses((prev) => ({ ...prev, [newAccount.id]: suggestedAddress }));
     setFormData((prev) => ({
       ...prev,
       account_id: newAccount.id,
       account_name: newAccount.account_name,
-      address_text: shouldAutofillAddress ? suggestedAddress : prev.address_text,
     }));
-
-    if (shouldAutofillAddress) {
-      setJobCoordinates({ lat: null, lng: null });
-      setAddressEditedManually(false);
-    }
 
     setErrors((prev) => ({ ...prev, account_id: null }));
     setCreateClientDialogOpen(false);
@@ -371,6 +370,18 @@ export default function JobForm() {
 
   function updateLineItem(id, field, value) {
     setLineItems((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
+  }
+
+  function updateLineNumericField(id, field, rawValue) {
+    const allowDecimal = field === 'unit_price';
+    const sanitizedValue = sanitizeNumericInput(rawValue, { allowDecimal });
+    updateLineItem(id, field, sanitizedValue);
+  }
+
+  function normalizeLineNumericField(id, field, rawValue) {
+    const allowDecimal = field === 'unit_price';
+    const normalizedValue = normalizeNumericInput(rawValue, { allowDecimal });
+    updateLineItem(id, field, normalizedValue);
   }
 
   function addLineItem() {
@@ -419,7 +430,7 @@ export default function JobForm() {
       const finalLines = lineItems
         .filter((line) => line.description.trim())
         .map((line) => {
-          const quantity = Math.max(1, toNumber(line.quantity));
+          const quantity = Math.max(0, toNumber(line.quantity));
           const unitPrice = Math.max(0, toNumber(line.unit_price));
           return {
             id: line.id,
@@ -470,7 +481,7 @@ export default function JobForm() {
       });
 
       if (shouldWarnMissingCoords) {
-        toast.warning('לא הצלחנו לאתר מיקום מדויק. העבודה תישמר ללא סימון במפה.');
+        toast.warning('הכתובת נשמרה, אבל כרגע לא הצלחנו לאמת מיקום במפה. אפשר להמשיך ולעדכן בהמשך.');
       }
 
       let nextStatus = isEditing ? persistedStatus : 'waiting_schedule';
@@ -782,8 +793,8 @@ export default function JobForm() {
                   placeholder="הרצל 10, אשדוד"
                   className={errors.address_text ? 'border-red-500' : ''}
                 />
-                <p className="text-xs text-slate-500 dark:text-slate-300">פורמט חובה: רחוב ומספר, עיר. לדוגמה: הרצל 10, אשדוד</p>
-                <p className="text-xs text-slate-500 dark:text-slate-300">פורמט מומלץ: רחוב ומספר, עיר. אפשר להקליד גם בלי פסיק והמערכת תתקן אוטומטית.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-300">אפשר להזין כתובת ידנית בכל פורמט. מומלץ: רחוב ומספר, עיר.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-300">אם אימות המיקום לא יצליח, העבודה עדיין תישמר ותופיע אזהרה.</p>
                 {addressAssist ? <p className="text-xs text-emerald-700 dark:text-emerald-300">{addressAssist}</p> : null}
                 {errors.address_text ? <p className="text-xs text-red-600">{errors.address_text}</p> : null}
               </div>
@@ -811,7 +822,7 @@ export default function JobForm() {
             </CardHeader>
             <CardContent className="space-y-4">
               {lineItems.map((item, index) => {
-                const quantity = Math.max(1, toNumber(item.quantity));
+                const quantity = Math.max(0, toNumber(item.quantity));
                 const unitPrice = Math.max(0, toNumber(item.unit_price));
                 const lineTotal = quantity * unitPrice;
                 const unitWithVat = calculateGross(unitPrice);
@@ -837,9 +848,12 @@ export default function JobForm() {
                         <Label>כמות</Label>
                         <Input
                           type="number"
-                          min="1"
+                          min="0"
                           value={item.quantity}
-                          onChange={(event) => updateLineItem(item.id, 'quantity', event.target.value)}
+                          onChange={(event) => updateLineNumericField(item.id, 'quantity', event.target.value)}
+                          onBlur={(event) => normalizeLineNumericField(item.id, 'quantity', event.target.value)}
+                          onKeyDown={handleNumericInputKeyDown}
+                          inputMode="numeric"
                           dir="ltr"
                         />
                       </div>
@@ -850,7 +864,10 @@ export default function JobForm() {
                           min="0"
                           step="0.01"
                           value={item.unit_price}
-                          onChange={(event) => updateLineItem(item.id, 'unit_price', event.target.value)}
+                          onChange={(event) => updateLineNumericField(item.id, 'unit_price', event.target.value)}
+                          onBlur={(event) => normalizeLineNumericField(item.id, 'unit_price', event.target.value)}
+                          onKeyDown={handleNumericInputKeyDown}
+                          inputMode="decimal"
                           dir="ltr"
                         />
                       </div>

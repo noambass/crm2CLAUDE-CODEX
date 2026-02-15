@@ -45,6 +45,7 @@ import { Label } from '@/components/ui/label';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
 import { useUiPreferences } from '@/lib/ui/useUiPreferences';
 import { useIsMobile } from '@/lib/ui/useIsMobile';
+import { normalizeScheduledAt, parseValidScheduledAt } from '@/lib/jobs/scheduleValidity';
 
 const DEFAULT_CENTER = [32.0853, 34.7818];
 
@@ -111,8 +112,8 @@ function clearRetryUntil(jobId) {
 
 function normalizeMapJob(job) {
   const accountRel = Array.isArray(job.accounts) ? job.accounts[0] : job.accounts;
-  const scheduledSource = job.scheduled_start_at || null;
-  const scheduledAt = scheduledSource ? new Date(scheduledSource) : null;
+  const scheduledSource = normalizeScheduledAt(job.scheduled_start_at);
+  const scheduledAt = parseValidScheduledAt(scheduledSource);
   const lat = parseCoord(job.lat);
   const lng = parseCoord(job.lng);
   const normalizedAddress = String(job.address_text || job.address || '').trim();
@@ -143,18 +144,21 @@ function normalizeMapJob(job) {
 }
 
 function compareByScheduledAt(a, b) {
-  return new Date(a.scheduled_start_at).getTime() - new Date(b.scheduled_start_at).getTime();
+  const aTime = parseValidScheduledAt(a.scheduled_start_at)?.getTime() || 0;
+  const bTime = parseValidScheduledAt(b.scheduled_start_at)?.getTime() || 0;
+  return aTime - bTime;
 }
 
 function getEtaSourceText(job, jobs) {
-  if (!job?.scheduled_start_at) return 'אין מקור ETA כי העבודה לא מתוזמנת';
+  const currentDate = parseValidScheduledAt(job?.scheduled_start_at);
+  if (!currentDate) return 'אין מקור ETA כי העבודה לא מתוזמנת';
 
-  const currentDate = new Date(job.scheduled_start_at);
   const sameDayJobs = jobs
     .filter(
-      (item) =>
-        item.scheduled_start_at &&
-        isSameDay(new Date(item.scheduled_start_at), currentDate)
+      (item) => {
+        const itemDate = parseValidScheduledAt(item.scheduled_start_at);
+        return itemDate && isSameDay(itemDate, currentDate);
+      }
     )
     .sort(compareByScheduledAt);
 
@@ -162,6 +166,14 @@ function getEtaSourceText(job, jobs) {
   if (idx > 0) return 'מהעבודה הקודמת';
 
   return OPS_MAP_DEFAULTS.dayStartOrigin.address;
+}
+
+function getLocationStatusText(job) {
+  if (job.hasCoords) return null;
+  if (!job.hasAddress) return 'מיקום לא זמין: לא הוזנה כתובת';
+  if (job.invalid_coords) return 'מיקום לא זמין: נקלטו קואורדינטות לא תקינות';
+  if (job.geocode_failed) return 'מיקום לא זמין: לא הצלחנו לאתר את הכתובת';
+  return 'מיקום לא זמין: הכתובת ממתינה לאימות';
 }
 
 export default function JobsMapPage() {
@@ -241,7 +253,7 @@ export default function JobsMapPage() {
 
         if (!mounted) return;
         setJobs(withCoords);
-        const firstWithCoords = withCoords.find((job) => job.hasCoords);
+        const firstWithCoords = withCoords.find((job) => isUsableJobCoords(job.lat, job.lng));
         if (firstWithCoords) {
           setMapCenter([firstWithCoords.lat, firstWithCoords.lng]);
         } else {
@@ -275,6 +287,9 @@ export default function JobsMapPage() {
   }, [isMobile, preferences.mobileMapSheet, setPreference]);
 
   const filteredJobs = useMemo(() => {
+    const fromDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+    const toDate = dateTo ? new Date(`${dateTo}T23:59:59`) : null;
+
     return jobs.filter((job) => {
       const query = searchQuery.trim().toLowerCase();
       if (query) {
@@ -282,11 +297,13 @@ export default function JobsMapPage() {
         if (!haystack.includes(query)) return false;
       }
 
-      if (dateFrom && (!job.scheduled_start_at || new Date(job.scheduled_start_at) < new Date(`${dateFrom}T00:00:00`))) {
+      const scheduledDate = parseValidScheduledAt(job.scheduled_start_at);
+
+      if (fromDate && (!scheduledDate || scheduledDate < fromDate)) {
         return false;
       }
 
-      if (dateTo && (!job.scheduled_start_at || new Date(job.scheduled_start_at) > new Date(`${dateTo}T23:59:59`))) {
+      if (toDate && (!scheduledDate || scheduledDate > toDate)) {
         return false;
       }
 
@@ -294,9 +311,25 @@ export default function JobsMapPage() {
     });
   }, [jobs, searchQuery, dateFrom, dateTo]);
 
+  const markerJobs = useMemo(
+    () => filteredJobs.filter((job) => isUsableJobCoords(job.lat, job.lng)),
+    [filteredJobs],
+  );
+
+  const safeMapCenter = useMemo(() => {
+    const lat = parseCoord(Array.isArray(mapCenter) ? mapCenter[0] : null);
+    const lng = parseCoord(Array.isArray(mapCenter) ? mapCenter[1] : null);
+    if (isUsableJobCoords(lat, lng)) return [lat, lng];
+    return DEFAULT_CENTER;
+  }, [mapCenter]);
+
   function selectJob(job) {
     setSelectedJob(job);
-    if (job.hasCoords) setMapCenter([job.lat, job.lng]);
+    const lat = parseCoord(job.lat);
+    const lng = parseCoord(job.lng);
+    if (isUsableJobCoords(lat, lng)) {
+      setMapCenter([lat, lng]);
+    }
   }
 
   async function handleScheduleJob() {
@@ -309,15 +342,17 @@ export default function JobsMapPage() {
     try {
       const scheduledStartAt = new Date(`${scheduleData.date}T${scheduleData.time}`).toISOString();
       const result = await scheduleMapJob(selectedJob.id, scheduledStartAt, selectedJob.status);
+      const normalizedSchedule = normalizeScheduledAt(result.scheduled_start_at);
+      const parsedSchedule = parseValidScheduledAt(normalizedSchedule);
 
       setJobs((prev) =>
         prev.map((job) =>
           job.id === selectedJob.id
             ? {
                 ...job,
-                scheduled_start_at: result.scheduled_start_at,
-                scheduled_date: scheduleData.date,
-                scheduled_time: scheduleData.time,
+                scheduled_start_at: normalizedSchedule,
+                scheduled_date: parsedSchedule ? format(parsedSchedule, 'yyyy-MM-dd') : '',
+                scheduled_time: parsedSchedule ? format(parsedSchedule, 'HH:mm') : '',
                 status: result.status,
               }
             : job
@@ -328,9 +363,9 @@ export default function JobsMapPage() {
         prev
           ? {
               ...prev,
-              scheduled_start_at: result.scheduled_start_at,
-              scheduled_date: scheduleData.date,
-              scheduled_time: scheduleData.time,
+              scheduled_start_at: normalizedSchedule,
+              scheduled_date: parsedSchedule ? format(parsedSchedule, 'yyyy-MM-dd') : '',
+              scheduled_time: parsedSchedule ? format(parsedSchedule, 'HH:mm') : '',
               status: result.status,
             }
           : prev
@@ -410,11 +445,16 @@ export default function JobsMapPage() {
 
   function renderSelectedJobPanel({ compact = false } = {}) {
     if (!selectedJob) return null;
+    const locationStatus = getLocationStatusText(selectedJob);
+
     return (
       <div className={`border-b border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60 ${compact ? 'space-y-2' : ''}`}>
         <div className="mb-2 font-semibold text-slate-800 dark:text-slate-100">{selectedJob.title}</div>
         <div className="text-sm text-slate-600 dark:text-slate-300">{selectedJob.account_name}</div>
         <div className="mt-2 text-xs text-slate-500 dark:text-slate-300">{selectedJob.address_text || 'ללא כתובת'}</div>
+        {locationStatus ? (
+          <div className="mt-1 text-xs text-amber-600">{locationStatus}</div>
+        ) : null}
         <div className="mt-2">
           <NextActionBadge status={selectedJob.status} />
         </div>
@@ -467,47 +507,45 @@ export default function JobsMapPage() {
   function renderJobsList({ compact = false } = {}) {
     return (
       <div className="space-y-3">
-        {filteredJobs.map((job) => (
-          <Card
-            key={job.id}
-            data-testid={`map-job-card-${job.id}`}
-            className={`cursor-pointer border-0 shadow-sm transition-all ${
-              selectedJob?.id === job.id ? 'ring-2 ring-emerald-500' : 'hover:shadow-md'
-            }`}
-            onClick={() => selectJob(job)}
-          >
-            <CardContent className="p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium text-slate-800 dark:text-slate-100">{job.title}</div>
-                  <div className="truncate text-sm text-slate-500 dark:text-slate-300">{job.account_name}</div>
-                  {!compact ? <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-300">{job.address_text}</div> : null}
-                  <div className="mt-1">
-                    <NextActionBadge status={job.status} />
-                  </div>
-                  {job.geocode_failed ? (
-                    <div className="mt-1 text-xs text-amber-600">מיקום לא אותר</div>
-                  ) : null}
-                  {job.invalid_coords ? (
-                    <div className="mt-1 text-xs text-amber-600">מיקום לא תקין</div>
-                  ) : null}
-                  {!job.hasCoords && !job.hasAddress ? (
-                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-300">אין כתובת למיקום</div>
-                  ) : null}
-                  {job.scheduled_start_at ? (
-                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-                      {format(new Date(job.scheduled_start_at), 'dd/MM/yyyy HH:mm')}
+        {filteredJobs.map((job) => {
+          const locationStatus = getLocationStatusText(job);
+          const scheduledDate = parseValidScheduledAt(job.scheduled_start_at);
+          return (
+            <Card
+              key={job.id}
+              data-testid={`map-job-card-${job.id}`}
+              className={`cursor-pointer border-0 shadow-sm transition-all ${
+                selectedJob?.id === job.id ? 'ring-2 ring-emerald-500' : 'hover:shadow-md'
+              }`}
+              onClick={() => selectJob(job)}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium text-slate-800 dark:text-slate-100">{job.title}</div>
+                    <div className="truncate text-sm text-slate-500 dark:text-slate-300">{job.account_name}</div>
+                    {!compact ? <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-300">{job.address_text}</div> : null}
+                    <div className="mt-1">
+                      <NextActionBadge status={job.status} />
                     </div>
-                  ) : null}
+                    {locationStatus ? (
+                      <div className="mt-1 text-xs text-amber-600">{locationStatus}</div>
+                    ) : null}
+                    {scheduledDate ? (
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-300">
+                        {format(scheduledDate, 'dd/MM/yyyy HH:mm')}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <JobStatusBadge status={job.status} />
+                    <PriorityBadge priority={job.priority} />
+                  </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <JobStatusBadge status={job.status} />
-                  <PriorityBadge priority={job.priority} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     );
   }
@@ -536,15 +574,13 @@ export default function JobsMapPage() {
       ) : null}
 
       <section className={isMobile ? 'h-full w-full' : 'order-1 h-full flex-1 lg:order-2'}>
-        <MapContainer center={mapCenter} zoom={12} style={{ height: '100%', width: '100%' }}>
+        <MapContainer center={safeMapCenter} zoom={12} style={{ height: '100%', width: '100%' }}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          {filteredJobs
-            .filter((job) => job.hasCoords)
-            .map((job) => (
+          {markerJobs.map((job) => (
               <Marker
                 key={job.id}
                 position={[job.lat, job.lng]}

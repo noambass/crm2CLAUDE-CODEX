@@ -62,12 +62,16 @@ import { buildTenMinuteTimeOptions, isTenMinuteSlot, toTenMinuteSlot } from '@/l
 import { getDetailedErrorReason } from '@/lib/errorMessages';
 import { useUiPreferences } from '@/lib/ui/useUiPreferences';
 import { useIsMobile } from '@/lib/ui/useIsMobile';
+import { parseValidScheduledAt } from '@/lib/jobs/scheduleValidity';
 
 const TIME_OPTIONS_10_MIN = buildTenMinuteTimeOptions();
 const DEFAULT_SCHEDULE_TIME = '08:00';
 const WEEK_DAY_LABELS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
 
-const getScheduledAt = (job) => job?.scheduled_start_at || null;
+const getScheduledAt = (job) => {
+  const parsed = parseValidScheduledAt(job?.scheduled_start_at);
+  return parsed ? parsed.toISOString() : null;
+};
 
 const getClientName = (job) => {
   const account = Array.isArray(job?.accounts) ? job.accounts[0] : job?.accounts;
@@ -76,7 +80,7 @@ const getClientName = (job) => {
 
 function normalizeCalendarJob(job) {
   const scheduledAt = getScheduledAt(job);
-  const parsedDate = scheduledAt ? new Date(scheduledAt) : null;
+  const parsedDate = parseValidScheduledAt(scheduledAt);
 
   return {
     ...job,
@@ -125,11 +129,7 @@ export default function Calendar() {
   const isMobileWeekView = isMobile && mobileCalendarView === 'week';
 
   const getJobScheduledDate = useCallback((job) => {
-    const scheduledAt = getScheduledAt(job);
-    if (!scheduledAt) return null;
-    const parsed = new Date(scheduledAt);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-    return null;
+    return parseValidScheduledAt(job?.scheduled_start_at);
   }, []);
 
   const getJobsForDay = useCallback(

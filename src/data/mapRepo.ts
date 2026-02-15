@@ -6,6 +6,7 @@ import {
   parseCoord,
 } from '@/lib/geo/coordsPolicy';
 import { getStatusForScheduling } from '@/lib/jobs/schedulingStatus';
+import { normalizeScheduledAt } from '@/lib/jobs/scheduleValidity';
 
 async function geocodeViaNominatimFallback(addressText) {
   const query = normalizeAddressText(addressText);
@@ -118,16 +119,17 @@ export async function updateMapJobCoordinates(jobId, lat, lng) {
 
 export async function scheduleMapJob(jobId, scheduledStartAt, currentStatus) {
   const nextStatus = getStatusForScheduling(currentStatus);
+  const normalizedScheduledStartAt = normalizeScheduledAt(scheduledStartAt);
   const { error } = await supabase
     .from('jobs')
     .update({
-      scheduled_start_at: scheduledStartAt,
+      scheduled_start_at: normalizedScheduledStartAt,
       status: nextStatus,
     })
     .eq('id', jobId);
 
   if (error) throw error;
-  return { scheduled_start_at: scheduledStartAt, status: nextStatus };
+  return { scheduled_start_at: normalizedScheduledStartAt, status: nextStatus };
 }
 
 export async function getRouteEstimate({ origin, destination, departureTime }) {

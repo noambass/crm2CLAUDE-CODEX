@@ -1,5 +1,6 @@
 import { supabase } from '@/api/supabaseClient';
 import { normalizeAddressText } from '@/lib/geo/coordsPolicy';
+import { normalizeScheduledAt } from '@/lib/jobs/scheduleValidity';
 
 export function getQuoteAccountName(quote) {
   const relation = Array.isArray(quote?.accounts) ? quote.accounts[0] : quote?.accounts;
@@ -55,7 +56,7 @@ export async function saveDraftQuote(input) {
     arrival_notes: normalizedArrivalNotes || null,
     lat: input.lat ?? null,
     lng: input.lng ?? null,
-    scheduled_start_at: input.scheduledStartAt || null,
+    scheduled_start_at: normalizeScheduledAt(input.scheduledStartAt),
   };
 
   let quoteId = input.quoteId;

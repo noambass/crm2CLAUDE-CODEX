@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { JobStatusBadge, PriorityBadge, QuoteStatusBadge } from '@/components/ui/DynamicStatusBadge';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import WeeklyCalendar from '@/components/dashboard/WeeklyCalendar';
+import { isScheduledAtValid, parseValidScheduledAt } from '@/lib/jobs/scheduleValidity';
 
 function getJobSubtotal(job) {
   if (!Array.isArray(job?.line_items)) return 0;
@@ -99,18 +100,21 @@ export default function Dashboard() {
 
         const monthlyRevenue = doneJobs
           .filter((job) => {
-            const baseDate = job.scheduled_start_at || job.created_at;
-            return baseDate && new Date(baseDate) >= monthStart;
+            const scheduledDate = parseValidScheduledAt(job.scheduled_start_at);
+            const createdDate = job.created_at ? new Date(job.created_at) : null;
+            const baseDate = scheduledDate || (createdDate && !Number.isNaN(createdDate.getTime()) ? createdDate : null);
+            return baseDate && baseDate >= monthStart;
           })
           .reduce((sum, job) => sum + getJobSubtotal(job) * 1.18, 0);
 
         const todayIso = format(new Date(), 'yyyy-MM-dd');
         const todayJobsList = jobs.filter((job) => {
-          if (!job.scheduled_start_at) return false;
-          return format(new Date(job.scheduled_start_at), 'yyyy-MM-dd') === todayIso;
+          const scheduledDate = parseValidScheduledAt(job.scheduled_start_at);
+          if (!scheduledDate) return false;
+          return format(scheduledDate, 'yyyy-MM-dd') === todayIso;
         });
 
-        const unscheduledJobsList = jobs.filter((job) => !job.scheduled_start_at && job.status !== 'done');
+        const unscheduledJobsList = jobs.filter((job) => !isScheduledAtValid(job.scheduled_start_at) && job.status !== 'done');
 
         const accountsWithJobs = new Set(jobs.map((job) => job.account_id).filter(Boolean));
         const interested = accounts.filter((acc) => !accountsWithJobs.has(acc.id)).slice(0, 5);
@@ -232,7 +236,7 @@ export default function Dashboard() {
                   <div className="mt-1 flex items-center justify-between">
                     <JobStatusBadge status={job.status} />
                     <span className="text-xs text-slate-500">
-                      {format(new Date(job.scheduled_start_at), 'dd/MM HH:mm')}
+                      {format(parseValidScheduledAt(job.scheduled_start_at), 'dd/MM HH:mm')}
                     </span>
                   </div>
                 </button>

@@ -5,6 +5,7 @@ import { createPageUrl } from '@/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { createClient, getClientProfile, updateClient } from '@/data/clientsRepo';
+import { geocodeAddress } from '@/data/mapRepo';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import GooglePlacesInput from '@/components/shared/GooglePlacesInput';
-import { isStrictIsraeliAddressFormat, normalizeAddressText } from '@/lib/geo/coordsPolicy';
+import { isUsableJobCoords, normalizeAddressText, parseCoord } from '@/lib/geo/coordsPolicy';
 import {
   Select,
   SelectContent,
@@ -101,10 +102,6 @@ export default function ClientForm() {
     if (!formData.fullName.trim()) {
       nextErrors.fullName = 'שם מלא הוא שדה חובה';
     }
-    const normalizedAddress = normalizeAddressText(formData.addressText);
-    if (normalizedAddress && !isStrictIsraeliAddressFormat(normalizedAddress)) {
-      nextErrors.addressText = 'יש להזין בפורמט: רחוב ומספר, עיר';
-    }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   }
@@ -129,11 +126,27 @@ export default function ClientForm() {
     setSaving(true);
 
     try {
+      const normalizedAddress = normalizeAddressText(formData.addressText);
+      let shouldWarnMissingCoords = false;
+
+      if (normalizedAddress) {
+        try {
+          const geo = await geocodeAddress(normalizedAddress);
+          const lat = parseCoord(geo?.lat);
+          const lng = parseCoord(geo?.lng);
+          if (!isUsableJobCoords(lat, lng)) {
+            shouldWarnMissingCoords = true;
+          }
+        } catch {
+          shouldWarnMissingCoords = true;
+        }
+      }
+
       const payload = {
         fullName: formData.fullName.trim(),
         phone: formData.phone.trim(),
         email: formData.email.trim(),
-        addressText: normalizeAddressText(formData.addressText),
+        addressText: normalizedAddress,
         internalNotes: formData.internalNotes.trim(),
         status: formData.status,
         clientType: formData.clientType,
@@ -145,6 +158,10 @@ export default function ClientForm() {
       } else {
         await createClient(payload);
         toast.success('הלקוח נוצר בהצלחה');
+      }
+
+      if (shouldWarnMissingCoords) {
+        toast.warning('הכתובת נשמרה, אבל כרגע לא הצלחנו לאמת מיקום במפה.');
       }
 
       queryClient.invalidateQueries({ queryKey: ['clients'] });
@@ -235,7 +252,8 @@ export default function ClientForm() {
                 placeholder="הרצל 10, אשדוד"
                 className={errors.addressText ? 'border-red-500' : ''}
               />
-              <p className="text-xs text-slate-500">פורמט מומלץ: רחוב ומספר, עיר. אפשר להקליד גם בלי פסיק והמערכת תתקן.</p>
+              <p className="text-xs text-slate-500">אפשר להזין כתובת ידנית בכל פורמט. מומלץ: רחוב ומספר, עיר.</p>
+              <p className="text-xs text-slate-500">אם אימות המיקום לא יצליח, הלקוח עדיין יישמר ותוצג אזהרה.</p>
               {addressAssist ? <p className="text-xs text-emerald-700">{addressAssist}</p> : null}
               {errors.addressText ? <p className="text-xs text-red-600">{errors.addressText}</p> : null}
             </div>
