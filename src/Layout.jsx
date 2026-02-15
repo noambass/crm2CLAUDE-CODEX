@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { supabase } from '@/api/supabaseClient';
@@ -303,7 +303,7 @@ export default function Layout({ children, currentPageName }) {
       <aside className="hidden lg:fixed lg:inset-y-0 lg:right-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-l border-slate-200 bg-white px-4 py-6 dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-4 flex items-center gap-3 px-4">
-            <img src={logo} alt="לוגו" className="h-12 w-auto" />
+            <img src={preferences.themeMode === 'dark' ? '/logo-dark.png' : logo} alt="לוגו" className="h-12 w-auto" />
             <div>
               <h1 className="text-lg font-bold text-[#00214d] dark:text-cyan-300">עולם הציפויים</h1>
               <p className="text-xs text-slate-500 dark:text-slate-300">מערכת ניהול</p>
@@ -364,7 +364,7 @@ export default function Layout({ children, currentPageName }) {
             <SheetContent side="right" className="w-72 p-0" dir="rtl">
               <div className="flex h-full flex-col bg-white dark:bg-slate-900">
                 <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-6 dark:border-slate-800">
-                  <img src={logo} alt="לוגו" className="h-10 w-auto" />
+                  <img src={preferences.themeMode === 'dark' ? '/logo-dark.png' : logo} alt="לוגו" className="h-10 w-auto" />
                   <div>
                     <h1 className="text-lg font-bold text-[#00214d] dark:text-cyan-300">עולם הציפויים</h1>
                     <p className="text-xs text-slate-500 dark:text-slate-300">מערכת ניהול</p>

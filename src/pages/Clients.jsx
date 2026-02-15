@@ -276,8 +276,8 @@ export default function Clients() {
             onClick: () => navigate(createPageUrl('ClientForm')),
           }}
         />
-      ) : (
-        <div className="space-y-3">
+      ) : isExpandedCards ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((profile) => {
             const account = profile.account;
             const contact = profile.primaryContact;
@@ -286,55 +286,108 @@ export default function Clients() {
 
             return (
               <Card key={account.id} className="border-0 shadow-sm transition-all hover:shadow-md">
-                <CardContent className={`p-4 ${isExpandedCards ? 'space-y-4' : ''}`}>
-                  <div className={`flex items-start justify-between gap-4 ${isExpandedCards ? 'flex-col lg:flex-row' : ''}`}>
-                    <button
-                      type="button"
-                      onClick={() => navigate(createPageUrl(`ClientDetails?id=${account.id}`))}
-                      className="min-w-0 flex-1 text-right"
-                    >
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-slate-800">{getAccountLabel(account)}</h4>
-                        <Badge variant="outline">{STATUS_BADGE[status] || status}</Badge>
-                        <ClientTypeBadge type={clientType} />
-                      </div>
-
-                      <div className={`mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500 ${isExpandedCards ? '' : 'line-clamp-1'}`}>
-                        {contact?.phone ? (
-                          <span className="flex items-center gap-1" dir="ltr">
-                            <Phone className="h-3 w-3" />
-                            {contact.phone}
-                          </span>
-                        ) : null}
-                        {contact?.email ? <span dir="ltr">{contact.email}</span> : null}
-                        {contact?.address_text ? (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {contact.address_text}
-                          </span>
-                        ) : null}
-                      </div>
-                    </button>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" size="sm" variant="outline" onClick={() => navigate(createPageUrl(`QuoteForm?account_id=${account.id}`))}>
-                        <FileText className="ml-1 h-4 w-4" />
-                        הצעה חדשה
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => navigate(createPageUrl(`JobForm?account_id=${account.id}`))}>
-                        <Briefcase className="ml-1 h-4 w-4" />
-                        עבודה חדשה
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600"
-                        onClick={() => scheduleDelete(profile)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                <CardContent className="flex flex-col gap-4 p-4">
+                  <button
+                    type="button"
+                    onClick={() => navigate(createPageUrl(`ClientDetails?id=${account.id}`))}
+                    className="text-right"
+                  >
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <h4 className="font-semibold text-slate-800">{getAccountLabel(account)}</h4>
+                      <Badge variant="outline">{STATUS_BADGE[status] || status}</Badge>
+                      <ClientTypeBadge type={clientType} />
                     </div>
+                    <div className="space-y-1 text-xs text-slate-500">
+                      {contact?.phone ? (
+                        <div className="flex items-center gap-1" dir="ltr">
+                          <Phone className="h-3 w-3 shrink-0" />
+                          {contact.phone}
+                        </div>
+                      ) : null}
+                      {contact?.email ? (
+                        <div className="truncate" dir="ltr">
+                          {contact.email}
+                        </div>
+                      ) : null}
+                      {contact?.address_text ? (
+                        <div className="flex items-start gap-1">
+                          <MapPin className="mt-0.5 h-3 w-3 shrink-0" />
+                          <span className="line-clamp-2">{contact.address_text}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </button>
+                  <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                    <Button type="button" size="sm" variant="outline" className="flex-1 sm:flex-none" onClick={() => navigate(createPageUrl(`QuoteForm?account_id=${account.id}`))}>
+                      <FileText className="ml-1 h-4 w-4" />
+                      הצעה
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" className="flex-1 sm:flex-none" onClick={() => navigate(createPageUrl(`JobForm?account_id=${account.id}`))}>
+                      <Briefcase className="ml-1 h-4 w-4" />
+                      עבודה
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600"
+                      onClick={() => scheduleDelete(profile)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((profile) => {
+            const account = profile.account;
+            const contact = profile.primaryContact;
+            const status = account.status || 'active';
+            const clientType = account.client_type || 'private';
+
+            return (
+              <Card key={account.id} className="border-0 shadow-sm transition-all hover:shadow-md">
+                <CardContent className="flex flex-row flex-wrap items-center gap-3 py-2.5 pe-3 ps-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate(createPageUrl(`ClientDetails?id=${account.id}`))}
+                    className="min-w-0 flex-1 text-right"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="truncate text-sm font-semibold text-slate-800">{getAccountLabel(account)}</h4>
+                      <Badge variant="outline" className="text-xs">{STATUS_BADGE[status] || status}</Badge>
+                      <ClientTypeBadge type={clientType} />
+                    </div>
+                    <div className="mt-0.5 line-clamp-1 flex items-center gap-2 text-xs text-slate-500">
+                      {contact?.phone ? (
+                        <span className="shrink-0" dir="ltr">
+                          <Phone className="inline h-3 w-3" />
+                          {contact.phone}
+                        </span>
+                      ) : null}
+                      {contact?.email ? <span className="truncate" dir="ltr">{contact.email}</span> : null}
+                    </div>
+                  </button>
+                  <div className="flex shrink-0 gap-1">
+                    <Button type="button" size="sm" variant="outline" className="h-8 px-2" onClick={() => navigate(createPageUrl(`QuoteForm?account_id=${account.id}`))}>
+                      <FileText className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" className="h-8 px-2" onClick={() => navigate(createPageUrl(`JobForm?account_id=${account.id}`))}>
+                      <Briefcase className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2 text-red-600"
+                      onClick={() => scheduleDelete(profile)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

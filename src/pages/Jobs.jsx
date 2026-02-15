@@ -1,20 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, Search, Plus, List, BarChart3, Users as UsersIcon, Clock as ClockIcon } from 'lucide-react';
+import { Briefcase, Search, Plus, List, BarChart3, Users as UsersIcon, Clock as ClockIcon, LayoutGrid, Rows3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
+import { getLineItemsSubtotal } from '@/lib/jobLineItems';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import EnhancedEmptyState from '@/components/shared/EnhancedEmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import { useUiPreferences } from '@/lib/ui/useUiPreferences';
 import { JobsListView, JobsByStatusView, JobsByClientsView, JobsByDateView } from '@/components/jobs/JobsViewMode';
 
 function normalizeJob(job) {
   const accountRel = Array.isArray(job.accounts) ? job.accounts[0] : job.accounts;
+  const lineItems = Array.isArray(job.line_items) ? job.line_items : [];
   return {
     id: job.id,
     title: job.title,
@@ -26,12 +29,16 @@ function normalizeJob(job) {
     scheduled_start_at: job.scheduled_start_at || null,
     created_at: job.created_at,
     account_name: accountRel?.account_name || 'ללא לקוח',
+    line_items: lineItems,
+    total: getLineItemsSubtotal(lineItems),
   };
 }
 
 export default function Jobs() {
   const navigate = useNavigate();
   const { user, isLoadingAuth } = useAuth();
+  const { preferences, setPreference } = useUiPreferences();
+  const isExpandedCards = preferences.jobsView === 'expanded_cards';
 
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +54,7 @@ export default function Jobs() {
       try {
         const { data, error } = await supabase
           .from('jobs')
-          .select('id, title, description, status, priority, address_text, arrival_notes, scheduled_start_at, created_at, accounts(account_name)')
+          .select('id, title, description, status, priority, address_text, arrival_notes, scheduled_start_at, created_at, line_items, accounts(account_name)')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -129,7 +136,7 @@ export default function Jobs() {
                 className="border-border pr-10"
               />
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
               <span className="text-sm font-medium text-muted-foreground">תצוגה:</span>
               <div className="rounded-xl bg-muted/30 p-1 dark:bg-muted/20">
                 <div className="flex flex-wrap gap-1">
@@ -158,6 +165,28 @@ export default function Jobs() {
                     );
                   })}
                 </div>
+              </div>
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-background p-1">
+                <Button
+                  type="button"
+                  variant={isExpandedCards ? 'ghost' : 'default'}
+                  size="sm"
+                  className={!isExpandedCards ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
+                  onClick={() => setPreference('jobsView', 'compact_cards')}
+                >
+                  <Rows3 className="ml-1 h-4 w-4" />
+                  קומפקטי
+                </Button>
+                <Button
+                  type="button"
+                  variant={isExpandedCards ? 'default' : 'ghost'}
+                  size="sm"
+                  className={isExpandedCards ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
+                  onClick={() => setPreference('jobsView', 'expanded_cards')}
+                >
+                  <LayoutGrid className="ml-1 h-4 w-4" />
+                  מורחב
+                </Button>
               </div>
             </div>
           </div>
@@ -190,13 +219,13 @@ export default function Jobs() {
           />
         )
       ) : viewMode === 'list' ? (
-        <JobsListView jobs={filteredJobs} navigate={navigate} />
+        <JobsListView jobs={filteredJobs} navigate={navigate} isExpandedCards={isExpandedCards} />
       ) : viewMode === 'status' ? (
-        <JobsByStatusView jobs={filteredJobs} navigate={navigate} />
+        <JobsByStatusView jobs={filteredJobs} navigate={navigate} isExpandedCards={isExpandedCards} />
       ) : viewMode === 'clients' ? (
-        <JobsByClientsView jobs={filteredJobs} navigate={navigate} />
+        <JobsByClientsView jobs={filteredJobs} navigate={navigate} isExpandedCards={isExpandedCards} />
       ) : (
-        <JobsByDateView jobs={filteredJobs} navigate={navigate} />
+        <JobsByDateView jobs={filteredJobs} navigate={navigate} isExpandedCards={isExpandedCards} />
       )}
     </div>
   );

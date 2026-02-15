@@ -7,8 +7,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { JobStatusBadge, NextActionBadge, PriorityBadge } from '@/components/ui/DynamicStatusBadge';
 import { getStatusPresentation } from '@/lib/workflow/statusPresentation';
+import { getLineItemTotal } from '@/lib/jobLineItems';
 import EmptyState from '@/components/shared/EmptyState';
 import { Briefcase } from 'lucide-react';
+
+function formatMoney(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+}
 
 function getAccountName(job) {
   return job.account_name || job.client_name || 'ללא לקוח';
@@ -22,44 +28,110 @@ function getScheduledAt(job) {
   return job.scheduled_start_at || null;
 }
 
-export function JobsListView({ jobs, navigate }) {
+function JobCardContent({ job, isExpanded }) {
+  const lineItems = Array.isArray(job.line_items) ? job.line_items : [];
+  const total = job.total != null ? job.total : lineItems.reduce((sum, item) => sum + getLineItemTotal(item), 0);
+
+  if (!isExpanded) {
+    return (
+      <>
+        <div className="min-w-0 flex-1">
+          <h3 className="mb-1 truncate text-sm font-semibold text-foreground">{job.title}</h3>
+          <p className="mb-1 truncate text-xs font-medium text-muted-foreground">{getAccountName(job)}</p>
+          {job.description ? <p className="mb-1 line-clamp-1 text-xs text-muted-foreground">{job.description}</p> : null}
+          {getAddress(job) ? (
+            <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{getAddress(job)}</span>
+            </div>
+          ) : null}
+          {getScheduledAt(job) ? (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              <span>{format(new Date(getScheduledAt(job)), 'dd/MM HH:mm', { locale: he })}</span>
+            </div>
+          ) : null}
+          {job.arrival_notes ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/90">{job.arrival_notes}</p> : null}
+        </div>
+        <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+          <JobStatusBadge status={job.status} />
+          <NextActionBadge status={job.status} />
+          <PriorityBadge priority={job.priority} />
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="min-w-0 flex-1">
+        <h3 className="mb-1 truncate text-sm font-semibold text-foreground">{job.title}</h3>
+        <p className="mb-1 truncate text-xs font-medium text-muted-foreground">{getAccountName(job)}</p>
+        {getAddress(job) ? (
+          <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
+            <MapPin className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{getAddress(job)}</span>
+          </div>
+        ) : null}
+        {getScheduledAt(job) ? (
+          <div className="mb-2 flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            <span>{format(new Date(getScheduledAt(job)), 'dd/MM HH:mm', { locale: he })}</span>
+          </div>
+        ) : null}
+        {lineItems.length > 0 ? (
+          <div className="mt-2 border-t border-border pt-2">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">שורות שירות</p>
+            <ul className="space-y-1 text-xs">
+              {lineItems.map((line, idx) => {
+                const qty = Number(line.quantity) || 0;
+                const unitPrice = Number(line.unit_price) || 0;
+                const lineTotal = getLineItemTotal(line);
+                return (
+                  <li key={line.id || idx} className="flex justify-between gap-2 text-foreground">
+                    <span className="truncate">{line.description || 'שירות'}</span>
+                    <span dir="ltr" className="shrink-0">
+                      {qty} × ₪{formatMoney(unitPrice)} = ₪{formatMoney(lineTotal)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p dir="ltr" className="mt-1.5 text-sm font-semibold text-foreground">
+              סה״כ: ₪{formatMoney(total)}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-muted-foreground">אין שורות שירות</p>
+        )}
+      </div>
+      <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+        <JobStatusBadge status={job.status} />
+        <NextActionBadge status={job.status} />
+        <PriorityBadge priority={job.priority} />
+      </div>
+    </>
+  );
+}
+
+export function JobsListView({ jobs, navigate, isExpandedCards }) {
   if (jobs.length === 0) {
     return <EmptyState icon={Briefcase} title="אין עבודות" description="לא נמצאו עבודות התואמות לחיפוש" />;
   }
 
+  const isExpanded = isExpandedCards === true;
+
   return (
-    <div className="space-y-2">
+    <div className={isExpanded ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-2'}>
       {jobs.map((job) => (
         <Card
           key={job.id}
-          className="group cursor-pointer border border-border bg-card transition-all duration-200 hover:border-[#00214d]/30 hover:shadow-md dark:hover:border-[#00214d]/40"
+          className="cursor-pointer border border-border bg-card transition-all duration-200 hover:border-[#00214d]/30 hover:shadow-md dark:hover:border-[#00214d]/40"
           onClick={() => navigate(createPageUrl(`JobDetails?id=${job.id}`))}
         >
           <CardContent className="p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <h3 className="mb-1 truncate text-sm font-semibold text-foreground">{job.title}</h3>
-                <p className="mb-1 truncate text-xs font-medium text-muted-foreground">{getAccountName(job)}</p>
-                {job.description ? <p className="mb-1 line-clamp-1 text-xs text-muted-foreground">{job.description}</p> : null}
-                {getAddress(job) ? (
-                  <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{getAddress(job)}</span>
-                  </div>
-                ) : null}
-                {getScheduledAt(job) ? (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="h-3.5 w-3.5 shrink-0" />
-                    <span>{format(new Date(getScheduledAt(job)), 'dd/MM HH:mm', { locale: he })}</span>
-                  </div>
-                ) : null}
-                {job.arrival_notes ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/90">{job.arrival_notes}</p> : null}
-              </div>
-              <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
-                <JobStatusBadge status={job.status} />
-                <NextActionBadge status={job.status} />
-                <PriorityBadge priority={job.priority} />
-              </div>
+            <div className={`flex items-start justify-between gap-4 ${isExpanded ? 'flex-col' : ''}`}>
+              <JobCardContent job={job} isExpanded={isExpanded} />
             </div>
           </CardContent>
         </Card>
@@ -68,8 +140,9 @@ export function JobsListView({ jobs, navigate }) {
   );
 }
 
-export function JobsByStatusView({ jobs, navigate }) {
+export function JobsByStatusView({ jobs, navigate, isExpandedCards }) {
   const statusOrder = ['quote', 'waiting_schedule', 'waiting_execution', 'done'];
+  const isExpanded = isExpandedCards === true;
 
   return (
     <div className="space-y-6">
@@ -90,7 +163,7 @@ export function JobsByStatusView({ jobs, navigate }) {
                 {items.length}
               </Badge>
             </div>
-            <div className="space-y-2">
+            <div className={isExpanded ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-2'}>
               {items.map((job) => (
                 <Card
                   key={job.id}
@@ -98,21 +171,8 @@ export function JobsByStatusView({ jobs, navigate }) {
                   onClick={() => navigate(createPageUrl(`JobDetails?id=${job.id}`))}
                 >
                   <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <h4 className="mb-1 truncate text-sm font-semibold text-foreground">{job.title}</h4>
-                        <p className="mb-1 truncate text-xs font-medium text-muted-foreground">{getAccountName(job)}</p>
-                        {getAddress(job) ? (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <MapPin className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{getAddress(job)}</span>
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
-                        <NextActionBadge status={job.status} />
-                        <PriorityBadge priority={job.priority} />
-                      </div>
+                    <div className={`flex items-start justify-between gap-4 ${isExpanded ? 'flex-col' : ''}`}>
+                      <JobCardContent job={job} isExpanded={isExpanded} />
                     </div>
                   </CardContent>
                 </Card>
@@ -125,7 +185,7 @@ export function JobsByStatusView({ jobs, navigate }) {
   );
 }
 
-export function JobsByClientsView({ jobs, navigate }) {
+export function JobsByClientsView({ jobs, navigate, isExpandedCards }) {
   const grouped = jobs.reduce((acc, job) => {
     const key = getAccountName(job);
     if (!acc[key]) acc[key] = [];
@@ -134,6 +194,7 @@ export function JobsByClientsView({ jobs, navigate }) {
   }, {});
 
   const sortedAccounts = Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'he'));
+  const isExpanded = isExpandedCards === true;
 
   return (
     <div className="space-y-6">
@@ -146,7 +207,7 @@ export function JobsByClientsView({ jobs, navigate }) {
             </Badge>
           </div>
 
-          <div className="space-y-2">
+          <div className={isExpanded ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-2'}>
             {grouped[accountName].map((job) => (
               <Card
                 key={job.id}
@@ -154,22 +215,8 @@ export function JobsByClientsView({ jobs, navigate }) {
                 onClick={() => navigate(createPageUrl(`JobDetails?id=${job.id}`))}
               >
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <h4 className="mb-1 truncate text-sm font-semibold text-foreground">{job.title}</h4>
-                      {job.description ? <p className="mb-1 line-clamp-1 text-xs text-muted-foreground">{job.description}</p> : null}
-                      {getAddress(job) ? (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <MapPin className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{getAddress(job)}</span>
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
-                      <JobStatusBadge status={job.status} />
-                      <NextActionBadge status={job.status} />
-                      <PriorityBadge priority={job.priority} />
-                    </div>
+                  <div className={`flex items-start justify-between gap-4 ${isExpanded ? 'flex-col' : ''}`}>
+                    <JobCardContent job={job} isExpanded={isExpanded} />
                   </div>
                 </CardContent>
               </Card>
@@ -181,9 +228,10 @@ export function JobsByClientsView({ jobs, navigate }) {
   );
 }
 
-export function JobsByDateView({ jobs, navigate }) {
+export function JobsByDateView({ jobs, navigate, isExpandedCards }) {
   const scheduledJobs = jobs.filter((j) => getScheduledAt(j));
   const unscheduledJobs = jobs.filter((j) => !getScheduledAt(j));
+  const isExpanded = isExpandedCards === true;
 
   const grouped = scheduledJobs.reduce((acc, job) => {
     const scheduledAt = getScheduledAt(job);
@@ -196,35 +244,14 @@ export function JobsByDateView({ jobs, navigate }) {
   const sortedDates = Object.keys(grouped).sort().reverse();
 
   function JobCard({ job }) {
-    const scheduledAt = getScheduledAt(job);
     return (
       <Card
         className="cursor-pointer border border-border bg-card transition-all duration-200 hover:border-[#00214d]/30 hover:shadow-md dark:hover:border-[#00214d]/40"
         onClick={() => navigate(createPageUrl(`JobDetails?id=${job.id}`))}
       >
         <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <h4 className="mb-1 truncate text-sm font-semibold text-foreground">{job.title}</h4>
-              <p className="mb-1 truncate text-xs font-medium text-muted-foreground">{getAccountName(job)}</p>
-              {getAddress(job) ? (
-                <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{getAddress(job)}</span>
-                </div>
-              ) : null}
-              {scheduledAt ? (
-                <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5 shrink-0" />
-                  <span>{format(new Date(scheduledAt), 'HH:mm', { locale: he })}</span>
-                </div>
-              ) : null}
-            </div>
-            <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
-              <JobStatusBadge status={job.status} />
-              <NextActionBadge status={job.status} />
-              <PriorityBadge priority={job.priority} />
-            </div>
+          <div className={`flex items-start justify-between gap-4 ${isExpanded ? 'flex-col' : ''}`}>
+            <JobCardContent job={job} isExpanded={isExpanded} />
           </div>
         </CardContent>
       </Card>
@@ -245,7 +272,7 @@ export function JobsByDateView({ jobs, navigate }) {
             </Badge>
           </div>
 
-          <div className="space-y-2">
+          <div className={isExpanded ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-2'}>
             {grouped[dateKey]
               .slice()
               .sort((a, b) => new Date(getScheduledAt(a)).getTime() - new Date(getScheduledAt(b)).getTime())
@@ -265,7 +292,7 @@ export function JobsByDateView({ jobs, navigate }) {
               {unscheduledJobs.length}
             </Badge>
           </div>
-          <div className="space-y-2">
+          <div className={isExpanded ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'space-y-2'}>
             {unscheduledJobs.map((job) => (
               <JobCard key={job.id} job={job} />
             ))}

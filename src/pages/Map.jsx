@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, isSameDay } from 'date-fns';
 import { createPageUrl } from '@/utils';
@@ -291,6 +291,8 @@ export default function JobsMapPage() {
     const toDate = dateTo ? new Date(`${dateTo}T23:59:59`) : null;
 
     return jobs.filter((job) => {
+      if (job.status === 'done') return false;
+
       const query = searchQuery.trim().toLowerCase();
       if (query) {
         const haystack = `${job.title} ${job.account_name} ${job.address_text}`.toLowerCase();
@@ -574,6 +576,7 @@ export default function JobsMapPage() {
       ) : null}
 
       <section className={isMobile ? 'h-full w-full' : 'order-1 h-full flex-1 lg:order-2'}>
+        <div dir="ltr" className="h-full w-full">
         <MapContainer center={safeMapCenter} zoom={12} style={{ height: '100%', width: '100%' }}>
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -610,6 +613,7 @@ export default function JobsMapPage() {
               </Marker>
             ))}
         </MapContainer>
+        </div>
       </section>
 
       {isMobile ? (

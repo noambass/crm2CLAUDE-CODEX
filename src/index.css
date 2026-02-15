@@ -42,40 +42,40 @@
   }
 
   .dark {
-    --background: 218 28% 10%;
-    --foreground: 214 32% 93%;
-    --card: 218 24% 13%;
-    --card-foreground: 214 32% 93%;
-    --popover: 218 24% 13%;
-    --popover-foreground: 214 32% 93%;
-    --primary: 214 73% 56%;
+    --background: 222 28% 12%;
+    --foreground: 210 30% 96%;
+    --card: 222 24% 15%;
+    --card-foreground: 210 30% 96%;
+    --popover: 222 24% 15%;
+    --popover-foreground: 210 30% 96%;
+    --primary: 207 75% 58%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 218 20% 18%;
-    --secondary-foreground: 214 32% 93%;
-    --muted: 218 18% 17%;
-    --muted-foreground: 216 16% 70%;
-    --accent: 217 21% 20%;
-    --accent-foreground: 214 32% 93%;
-    --destructive: 0 73% 44%;
+    --secondary: 222 22% 20%;
+    --secondary-foreground: 210 30% 96%;
+    --muted: 222 20% 20%;
+    --muted-foreground: 215 20% 78%;
+    --accent: 222 22% 22%;
+    --accent-foreground: 210 30% 96%;
+    --destructive: 0 65% 48%;
     --destructive-foreground: 0 0% 98%;
-    --border: 217 18% 25%;
-    --input: 217 18% 25%;
-    --ring: 214 73% 56%;
+    --border: 218 22% 28%;
+    --input: 218 22% 22%;
+    --ring: 207 75% 58%;
     --chart-1: 212 76% 59%;
     --chart-2: 184 56% 46%;
     --chart-3: 36 88% 59%;
     --chart-4: 263 63% 64%;
     --chart-5: 344 72% 60%;
-    --sidebar-background: 220 29% 11%;
-    --sidebar-foreground: 214 32% 93%;
-    --sidebar-primary: 214 73% 56%;
+    --sidebar-background: 222 26% 14%;
+    --sidebar-foreground: 210 30% 96%;
+    --sidebar-primary: 207 75% 58%;
     --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 219 20% 19%;
-    --sidebar-accent-foreground: 214 32% 93%;
-    --sidebar-border: 217 18% 25%;
-    --sidebar-ring: 214 73% 56%;
-    --crm-primary: #1b4f84;
-    --crm-accent: #60a5fa;
+    --sidebar-accent: 222 22% 20%;
+    --sidebar-accent-foreground: 210 30% 96%;
+    --sidebar-border: 218 22% 28%;
+    --sidebar-ring: 207 75% 58%;
+    --crm-primary: #3b82f6;
+    --crm-accent: #38bdf8;
   }
 }
 
@@ -102,51 +102,51 @@
 
   .dark body {
     background:
-      radial-gradient(1300px 620px at 100% -12%, rgb(37 99 235 / 0.14), transparent 60%),
-      radial-gradient(980px 560px at -12% 10%, rgb(30 64 175 / 0.14), transparent 64%),
-      linear-gradient(180deg, rgb(11 17 30) 0%, rgb(12 20 36) 54%, rgb(10 18 32) 100%);
+      radial-gradient(1400px 700px at 100% -10%, rgb(59 130 246 / 0.08), transparent 55%),
+      radial-gradient(1000px 600px at 0% 15%, rgb(56 189 248 / 0.06), transparent 60%),
+      linear-gradient(180deg, hsl(222, 28%, 12%) 0%, hsl(222, 26%, 10%) 100%);
   }
 
   .dark .bg-white {
-    background-color: rgb(16 28 46 / 0.9) !important;
+    background-color: hsl(222, 24%, 16%) !important;
   }
 
   .dark .bg-slate-50 {
-    background-color: rgb(20 34 54 / 0.68) !important;
+    background-color: hsl(222, 22%, 18%) !important;
   }
 
   .dark .bg-slate-100 {
-    background-color: rgb(28 45 70 / 0.72) !important;
+    background-color: hsl(222, 20%, 22%) !important;
   }
 
   .dark .bg-slate-800 {
-    background-color: rgb(20 34 54 / 0.95) !important;
+    background-color: hsl(222, 24%, 18%) !important;
   }
 
   .dark .bg-slate-900 {
-    background-color: rgb(12 23 40 / 0.96) !important;
+    background-color: hsl(222, 26%, 14%) !important;
   }
 
   .dark .text-slate-800,
   .dark .text-slate-700,
   .dark .text-slate-600 {
-    color: rgb(231 238 248) !important;
+    color: hsl(210, 30%, 96%) !important;
   }
 
   .dark .text-slate-500,
   .dark .text-slate-400 {
-    color: rgb(157 176 201) !important;
+    color: hsl(215, 20%, 78%) !important;
   }
 
   .dark .border-slate-200,
   .dark .border-slate-300 {
-    border-color: rgb(43 60 86) !important;
+    border-color: hsl(218, 22%, 28%) !important;
   }
 
   .dark .text-blue-600,
   .dark .text-blue-700,
   .dark .text-blue-800 {
-    color: rgb(147 197 253) !important;
+    color: hsl(213, 94%, 78%) !important;
   }
 
   .dark .text-violet-600 {
@@ -162,37 +162,37 @@
   }
 
   .dark .bg-\[\#00214d\] {
-    background-color: rgb(27 79 132) !important;
+    background-color: hsl(217, 91%, 60%) !important;
   }
 
   .dark .hover\:bg-\[\#00214d\]\/90:hover {
-    background-color: rgb(34 99 164) !important;
+    background-color: hsl(217, 91%, 65%) !important;
   }
 
   .dark [style*="background-color: rgb(0, 33, 77)"] {
-    background-color: rgb(27 79 132) !important;
+    background-color: hsl(217, 91%, 60%) !important;
   }
 
   .dark .shadow-sm {
-    box-shadow: 0 8px 20px rgb(2 8 23 / 0.3) !important;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 0.25) !important;
   }
 
   .dark .shadow-lg,
   .dark .shadow-xl {
-    box-shadow: 0 14px 34px rgb(2 8 23 / 0.44) !important;
+    box-shadow: 0 12px 28px rgb(0 0 0 / 0.35) !important;
   }
 
   .dark input,
   .dark select,
   .dark textarea {
-    color: rgb(231 238 248);
-    border-color: rgb(43 60 86);
-    background-color: rgb(14 26 44);
+    color: hsl(210, 30%, 96%);
+    border-color: hsl(218, 22%, 28%);
+    background-color: hsl(222, 22%, 18%);
   }
 
   .dark input::placeholder,
   .dark textarea::placeholder {
-    color: rgb(129 146 171);
+    color: hsl(215, 18%, 62%);
   }
 
   .no-scrollbar {
