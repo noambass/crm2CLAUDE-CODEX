@@ -16,6 +16,7 @@ import {
 import { buildTenMinuteTimeOptions, isTenMinuteSlot, toTenMinuteSlot } from '@/lib/time/timeSlots';
 import { calculateGross, calculateVAT } from '@/utils/vat';
 import { useIsMobile } from '@/lib/ui/useIsMobile';
+import { getClientProfile } from '@/data/clientsRepo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -306,7 +307,7 @@ export default function QuoteForm() {
     });
   }
 
-  function handleAccountSelect(account) {
+  async function handleAccountSelect(account) {
     setFormData((prev) => ({
       ...prev,
       account_id: account.id,
@@ -315,6 +316,20 @@ export default function QuoteForm() {
 
     setErrors((prev) => ({ ...prev, account_id: null }));
     setAccountPopoverOpen(false);
+
+    // Auto-fill address from client profile
+    try {
+      const profile = await getClientProfile(account.id);
+      if (profile?.primaryContact?.address_text) {
+        setFormData((prev) => ({
+          ...prev,
+          address_text: profile.primaryContact.address_text,
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching client address:', error);
+      // Silently fail - address is optional
+    }
   }
 
   function handleClientCreated(newAccount) {

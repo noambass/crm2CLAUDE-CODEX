@@ -1,11 +1,10 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, Loader2, Save } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { createClient, getClientProfile, updateClient } from '@/data/clientsRepo';
-import { geocodeAddress } from '@/data/mapRepo';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,8 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import GooglePlacesInput from '@/components/shared/GooglePlacesInput';
-import { isUsableJobCoords, normalizeAddressText, parseCoord } from '@/lib/geo/coordsPolicy';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -30,11 +28,17 @@ const STATUS_OPTIONS = [
   { value: 'inactive', label: 'לא פעיל' },
 ];
 
-const CLIENT_TYPE_OPTIONS = [
-  { value: 'private', label: 'לקוח פרטי' },
-  { value: 'company', label: 'חברה' },
-  { value: 'bath_company', label: 'חברת אמבטיות' },
-];
+const EMPTY_FORM = {
+  clientType: 'private',
+  companyName: '',
+  fullName: '',
+  role: '',
+  phone: '',
+  email: '',
+  addressText: '',
+  internalNotes: '',
+  status: 'active',
+};
 
 export default function ClientForm() {
   const navigate = useNavigate();
@@ -49,16 +53,9 @@ export default function ClientForm() {
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
-  const [addressAssist, setAddressAssist] = useState('');
-  const [formData, setFormData] = useState({
-    fullName: '',
-    phone: '',
-    email: '',
-    addressText: '',
-    internalNotes: '',
-    status: 'active',
-    clientType: 'private',
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
+
+  const isCompanyType = formData.clientType === 'company' || formData.clientType === 'bath_company';
 
   useEffect(() => {
     if (!user || !isEditing || !accountId) return;
@@ -70,14 +67,19 @@ export default function ClientForm() {
         const profile = await getClientProfile(accountId);
         if (!mounted) return;
 
+        const clientType = profile.account.client_type || 'private';
+        const isCompany = clientType === 'company' || clientType === 'bath_company';
+
         setFormData({
-          fullName: profile.primaryContact?.full_name || profile.account.account_name || '',
+          clientType,
+          companyName: isCompany ? (profile.account.account_name || '') : '',
+          fullName: profile.primaryContact?.full_name || (!isCompany ? profile.account.account_name : '') || '',
+          role: profile.primaryContact?.role || '',
           phone: profile.primaryContact?.phone || '',
           email: profile.primaryContact?.email || '',
           addressText: profile.primaryContact?.address_text || '',
           internalNotes: profile.account.notes || '',
           status: profile.account.status || 'active',
-          clientType: profile.account.client_type || 'private',
         });
       } catch (error) {
         console.error('Error loading account profile:', error);
@@ -97,25 +99,25 @@ export default function ClientForm() {
     };
   }, [user, isEditing, accountId]);
 
+  function set(field, value) {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }));
+  }
+
+  function handleTabChange(value) {
+    setFormData((prev) => ({ ...prev, clientType: value }));
+    setErrors({});
+  }
+
   function validate() {
     const nextErrors = {};
-    if (!formData.fullName.trim()) {
-      nextErrors.fullName = 'שם מלא הוא שדה חובה';
+    if (isCompanyType) {
+      if (!formData.companyName.trim()) nextErrors.companyName = 'שם חברה הוא שדה חובה';
+    } else {
+      if (!formData.fullName.trim()) nextErrors.fullName = 'שם מלא הוא שדה חובה';
     }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
-  }
-
-  function handleAddressChange(text, meta = {}) {
-    setFormData((prev) => ({ ...prev, addressText: text }));
-    if (meta?.autofixed) {
-      setAddressAssist(`הכתובת תוקנה אוטומטית: ${text}`);
-    } else if (meta?.isManual) {
-      setAddressAssist('');
-    }
-    if (errors.addressText) {
-      setErrors((prev) => ({ ...prev, addressText: null }));
-    }
   }
 
   async function handleSubmit(event) {
@@ -126,30 +128,16 @@ export default function ClientForm() {
     setSaving(true);
 
     try {
-      const normalizedAddress = normalizeAddressText(formData.addressText);
-      let shouldWarnMissingCoords = false;
-
-      if (normalizedAddress) {
-        try {
-          const geo = await geocodeAddress(normalizedAddress);
-          const lat = parseCoord(geo?.lat);
-          const lng = parseCoord(geo?.lng);
-          if (!isUsableJobCoords(lat, lng)) {
-            shouldWarnMissingCoords = true;
-          }
-        } catch {
-          shouldWarnMissingCoords = true;
-        }
-      }
-
       const payload = {
+        clientType: formData.clientType,
+        companyName: formData.companyName.trim(),
         fullName: formData.fullName.trim(),
+        role: formData.role.trim(),
         phone: formData.phone.trim(),
         email: formData.email.trim(),
-        addressText: normalizedAddress,
+        addressText: formData.addressText.trim(),
         internalNotes: formData.internalNotes.trim(),
         status: formData.status,
-        clientType: formData.clientType,
       };
 
       if (isEditing && accountId) {
@@ -158,10 +146,6 @@ export default function ClientForm() {
       } else {
         await createClient(payload);
         toast.success('הלקוח נוצר בהצלחה');
-      }
-
-      if (shouldWarnMissingCoords) {
-        toast.warning('הכתובת נשמרה, אבל כרגע לא הצלחנו לאמת מיקום במפה.');
       }
 
       queryClient.invalidateQueries({ queryKey: ['clients'] });
@@ -183,8 +167,9 @@ export default function ClientForm() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div dir="rtl" className="mx-auto max-w-3xl space-y-6 p-4 lg:p-8">
-      <div className="mb-8 flex items-center gap-4">
+    <div dir="rtl" className="mx-auto max-w-2xl space-y-6 p-4 lg:p-8">
+      {/* Header */}
+      <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full">
           <ArrowRight className="h-5 w-5" />
         </Button>
@@ -195,88 +180,209 @@ export default function ClientForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Type tabs */}
+        <Tabs value={formData.clientType} onValueChange={handleTabChange}>
+          <TabsList className="w-full grid grid-cols-3">
+            <TabsTrigger value="private">לקוח פרטי</TabsTrigger>
+            <TabsTrigger value="company">חברה</TabsTrigger>
+            <TabsTrigger value="bath_company">חברת אמבטיות</TabsTrigger>
+          </TabsList>
+
+          {/* ─── PRIVATE ─── */}
+          <TabsContent value="private" className="mt-6 space-y-6">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">פרטי לקוח</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName-private">שם מלא *</Label>
+                  <Input
+                    id="fullName-private"
+                    data-testid="client-full-name"
+                    value={formData.fullName}
+                    onChange={(e) => set('fullName', e.target.value)}
+                    placeholder="ישראל ישראלי"
+                    className={errors.fullName ? 'border-red-500' : ''}
+                  />
+                  {errors.fullName ? <p className="text-xs text-red-600">{errors.fullName}</p> : null}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone-private">טלפון</Label>
+                  <Input
+                    id="phone-private"
+                    data-testid="client-phone"
+                    value={formData.phone}
+                    onChange={(e) => set('phone', e.target.value)}
+                    placeholder="050-0000000"
+                    dir="ltr"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address-private">כתובת</Label>
+                  <Input
+                    id="address-private"
+                    value={formData.addressText}
+                    onChange={(e) => set('addressText', e.target.value)}
+                    placeholder="הרצל 10, אשדוד"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ─── COMPANY ─── */}
+          <TabsContent value="company" className="mt-6 space-y-6">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">פרטי חברה</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="companyName-company">שם חברה *</Label>
+                  <Input
+                    id="companyName-company"
+                    value={formData.companyName}
+                    onChange={(e) => set('companyName', e.target.value)}
+                    placeholder="שם החברה"
+                    className={errors.companyName ? 'border-red-500' : ''}
+                  />
+                  {errors.companyName ? <p className="text-xs text-red-600">{errors.companyName}</p> : null}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">איש קשר ראשי</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName-company">שם</Label>
+                    <Input
+                      id="fullName-company"
+                      value={formData.fullName}
+                      onChange={(e) => set('fullName', e.target.value)}
+                      placeholder="שם איש הקשר"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role-company">תפקיד</Label>
+                    <Input
+                      id="role-company"
+                      value={formData.role}
+                      onChange={(e) => set('role', e.target.value)}
+                      placeholder="מנהל החזקה..."
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone-company">טלפון</Label>
+                  <Input
+                    id="phone-company"
+                    value={formData.phone}
+                    onChange={(e) => set('phone', e.target.value)}
+                    placeholder="050-0000000"
+                    dir="ltr"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address-company">כתובת</Label>
+                  <Input
+                    id="address-company"
+                    value={formData.addressText}
+                    onChange={(e) => set('addressText', e.target.value)}
+                    placeholder="הרצל 10, אשדוד"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ─── BATH COMPANY ─── */}
+          <TabsContent value="bath_company" className="mt-6 space-y-6">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">פרטי חברת אמבטיות</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="companyName-bath">שם חברה *</Label>
+                  <Input
+                    id="companyName-bath"
+                    value={formData.companyName}
+                    onChange={(e) => set('companyName', e.target.value)}
+                    placeholder="שם חברת האמבטיות"
+                    className={errors.companyName ? 'border-red-500' : ''}
+                  />
+                  {errors.companyName ? <p className="text-xs text-red-600">{errors.companyName}</p> : null}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">איש קשר ראשי</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName-bath">שם</Label>
+                    <Input
+                      id="fullName-bath"
+                      value={formData.fullName}
+                      onChange={(e) => set('fullName', e.target.value)}
+                      placeholder="שם איש הקשר"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role-bath">תפקיד</Label>
+                    <Input
+                      id="role-bath"
+                      value={formData.role}
+                      onChange={(e) => set('role', e.target.value)}
+                      placeholder="שירות לקוחות..."
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone-bath">טלפון</Label>
+                  <Input
+                    id="phone-bath"
+                    value={formData.phone}
+                    onChange={(e) => set('phone', e.target.value)}
+                    placeholder="050-0000000"
+                    dir="ltr"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address-bath">כתובת</Label>
+                  <Input
+                    id="address-bath"
+                    value={formData.addressText}
+                    onChange={(e) => set('addressText', e.target.value)}
+                    placeholder="הרצל 10, אשדוד"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* ─── Common: status + notes ─── */}
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">פרטים בסיסיים</CardTitle>
+            <CardTitle className="text-lg">הגדרות</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">שם לקוח *</Label>
-              <Input
-                id="fullName"
-                data-testid="client-full-name"
-                value={formData.fullName}
-                onChange={(e) => setFormData((prev) => ({ ...prev, fullName: e.target.value }))}
-                placeholder="שם הלקוח"
-                className={errors.fullName ? 'border-red-500' : ''}
-              />
-              {errors.fullName ? <p className="text-xs text-red-600">{errors.fullName}</p> : null}
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="phone">טלפון</Label>
-                <Input
-                  id="phone"
-                  data-testid="client-phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
-                  placeholder="050-0000000"
-                  dir="ltr"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">אימייל</Label>
-                <Input
-                  id="email"
-                  data-testid="client-email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-                  placeholder="email@example.com"
-                  dir="ltr"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="addressText">כתובת</Label>
-              <GooglePlacesInput
-                id="addressText"
-                data-testid="client-address"
-                value={formData.addressText}
-                onChangeText={handleAddressChange}
-                onPlaceSelected={({ addressText }) => handleAddressChange(addressText, { isManual: false })}
-                onAddressAutofix={({ normalized }) => setAddressAssist(`הכתובת תוקנה אוטומטית: ${normalized}`)}
-                placeholder="הרצל 10, אשדוד"
-                className={errors.addressText ? 'border-red-500' : ''}
-              />
-              <p className="text-xs text-slate-500">אפשר להזין כתובת ידנית בכל פורמט. מומלץ: רחוב ומספר, עיר.</p>
-              <p className="text-xs text-slate-500">אם אימות המיקום לא יצליח, הלקוח עדיין יישמר ותוצג אזהרה.</p>
-              {addressAssist ? <p className="text-xs text-emerald-700">{addressAssist}</p> : null}
-              {errors.addressText ? <p className="text-xs text-red-600">{errors.addressText}</p> : null}
-            </div>
-
-            <div className="space-y-2">
-              <Label>סוג לקוח</Label>
-              <Select value={formData.clientType} onValueChange={(value) => setFormData((prev) => ({ ...prev, clientType: value }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CLIENT_TYPE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
               <Label>סטטוס לקוח</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}>
+              <Select value={formData.status} onValueChange={(v) => set('status', v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -289,27 +395,21 @@ export default function ClientForm() {
                 </SelectContent>
               </Select>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg">הערות</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="internalNotes">הערות פנימיות</Label>
               <Textarea
                 id="internalNotes"
                 data-testid="client-notes"
                 value={formData.internalNotes}
-                onChange={(e) => setFormData((prev) => ({ ...prev, internalNotes: e.target.value }))}
+                onChange={(e) => set('internalNotes', e.target.value)}
                 rows={3}
               />
             </div>
           </CardContent>
         </Card>
 
+        {/* Actions */}
         <div className="flex gap-3 pt-2">
           <Button
             data-testid="client-save-button"

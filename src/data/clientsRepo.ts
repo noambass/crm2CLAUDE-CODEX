@@ -50,39 +50,31 @@ export async function getClientProfile(accountId) {
     .single();
   if (accountError) throw accountError;
 
-  const { data: primaryContact, error: primaryError } = await supabase
+  const { data: allContacts, error: contactsError } = await supabase
     .from('contacts')
     .select('*')
     .eq('account_id', accountId)
-    .eq('is_primary', true)
-    .limit(1)
-    .maybeSingle();
-  if (primaryError) throw primaryError;
+    .order('is_primary', { ascending: false })
+    .order('created_at', { ascending: true });
+  if (contactsError) throw contactsError;
 
-  if (primaryContact) {
-    return {
-      account,
-      primaryContact,
-    };
-  }
-
-  const { data: fallbackContact, error: fallbackError } = await supabase
-    .from('contacts')
-    .select('*')
-    .eq('account_id', accountId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (fallbackError) throw fallbackError;
+  const contacts = allContacts || [];
+  const primaryContact = contacts.find((c) => c.is_primary) || contacts[0] || null;
 
   return {
     account,
-    primaryContact: fallbackContact || null,
+    primaryContact,
+    allContacts: contacts,
   };
 }
 
 export async function createClient(input) {
-  const accountName = (input.fullName || '').trim();
+  const isCompanyType = input.clientType === 'company' || input.clientType === 'bath_company';
+  const accountName = isCompanyType
+    ? (input.companyName || '').trim()
+    : (input.fullName || '').trim();
+  const contactName = (input.fullName || accountName).trim();
+
   const { data: account, error: accountError } = await supabase
     .from('accounts')
     .insert([
@@ -102,7 +94,8 @@ export async function createClient(input) {
     .insert([
       {
         account_id: account.id,
-        full_name: accountName,
+        full_name: contactName,
+        role: input.role || null,
         phone: input.phone || null,
         email: input.email || null,
         address_text: normalizeAddressText(input.addressText) || null,
@@ -117,11 +110,16 @@ export async function createClient(input) {
 }
 
 export async function updateClient(accountId, input) {
-  const fullName = (input.fullName || '').trim();
+  const isCompanyType = input.clientType === 'company' || input.clientType === 'bath_company';
+  const accountName = isCompanyType
+    ? (input.companyName || '').trim()
+    : (input.fullName || '').trim();
+  const contactName = (input.fullName || accountName).trim();
+
   const { error: accountError } = await supabase
     .from('accounts')
     .update({
-      account_name: fullName,
+      account_name: accountName,
       notes: input.internalNotes || null,
       status: input.status || 'active',
       client_type: input.clientType || 'private',
@@ -138,13 +136,12 @@ export async function updateClient(accountId, input) {
     .maybeSingle();
   if (primaryFetchError) throw primaryFetchError;
 
-  let primaryId = primary?.id || null;
-
   if (primary?.id) {
     const { error: primaryUpdateError } = await supabase
       .from('contacts')
       .update({
-        full_name: fullName,
+        full_name: contactName,
+        role: input.role ?? null,
         phone: input.phone || null,
         email: input.email || null,
         address_text: normalizeAddressText(input.addressText) || null,
@@ -152,12 +149,13 @@ export async function updateClient(accountId, input) {
       .eq('id', primary.id);
     if (primaryUpdateError) throw primaryUpdateError;
   } else {
-    const { data: insertedPrimary, error: primaryInsertError } = await supabase
+    const { error: primaryInsertError } = await supabase
       .from('contacts')
       .insert([
         {
           account_id: accountId,
-          full_name: fullName,
+          full_name: contactName,
+          role: input.role || null,
           phone: input.phone || null,
           email: input.email || null,
           address_text: normalizeAddressText(input.addressText) || null,
@@ -167,17 +165,8 @@ export async function updateClient(accountId, input) {
       .select('id')
       .single();
     if (primaryInsertError) throw primaryInsertError;
-    primaryId = insertedPrimary?.id || null;
   }
-
-  if (primaryId) {
-    const { error: cleanupError } = await supabase
-      .from('contacts')
-      .delete()
-      .eq('account_id', accountId)
-      .neq('id', primaryId);
-    if (cleanupError) throw cleanupError;
-  }
+  // Note: non-primary contacts are intentionally preserved
 }
 
 export async function deleteClient(accountId) {
@@ -198,4 +187,71 @@ export async function findClientByPhone(phone) {
 
   const match = (data || []).find((c) => String(c.phone || '').replace(/\D/g, '') === normalized);
   return match || null;
+}
+
+// ─── Contact CRUD ─────────────────────────────────────────────────────────────
+
+export async function addContact(accountId: string, input: {
+  full_name: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+}) {
+  const { data, error } = await supabase
+    .from('contacts')
+    .insert([
+      {
+        account_id: accountId,
+        full_name: (input.full_name || '').trim(),
+        role: input.role?.trim() || null,
+        phone: input.phone?.trim() || null,
+        email: input.email?.trim() || null,
+        is_primary: false,
+      },
+    ])
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateContactById(contactId: string, input: {
+  full_name?: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+}) {
+  const patch: Record<string, unknown> = {};
+  if (input.full_name !== undefined) patch.full_name = (input.full_name || '').trim();
+  if (input.role !== undefined) patch.role = input.role?.trim() || null;
+  if (input.phone !== undefined) patch.phone = input.phone?.trim() || null;
+  if (input.email !== undefined) patch.email = input.email?.trim() || null;
+
+  const { error } = await supabase
+    .from('contacts')
+    .update(patch)
+    .eq('id', contactId);
+  if (error) throw error;
+}
+
+export async function deleteContactById(contactId: string) {
+  const { error } = await supabase
+    .from('contacts')
+    .delete()
+    .eq('id', contactId);
+  if (error) throw error;
+}
+
+export async function setPrimaryContact(accountId: string, contactId: string) {
+  const { error: unsetError } = await supabase
+    .from('contacts')
+    .update({ is_primary: false })
+    .eq('account_id', accountId);
+  if (unsetError) throw unsetError;
+
+  const { error: setError } = await supabase
+    .from('contacts')
+    .update({ is_primary: true })
+    .eq('id', contactId);
+  if (setError) throw setError;
 }

@@ -1,20 +1,29 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, FileText, Plus, Phone, Mail, MapPin, User } from 'lucide-react';
+import { ArrowRight, FileText, Plus, Phone, Mail, User, Pencil, Trash2, Star, X, Check } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/lib/AuthContext';
-import { getClientProfile } from '@/data/clientsRepo';
+import {
+  getClientProfile,
+  addContact,
+  updateContactById,
+  deleteContactById,
+  setPrimaryContact,
+} from '@/data/clientsRepo';
 import { listQuotesByAccount } from '@/data/quotesRepo';
 import { listJobsByAccount } from '@/data/jobsRepo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ClientTypeBadge } from '@/components/ui/DynamicStatusBadge';
+import { Input } from '@/components/ui/input';
+import { ClientStatusBadge, ClientTypeBadge } from '@/components/ui/DynamicStatusBadge';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import EmptyState from '@/components/shared/EmptyState';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
 import { format } from 'date-fns';
+
+const EMPTY_CONTACT_FORM = () => ({ full_name: '', role: '', phone: '', email: '' });
 
 export default function ClientDetails() {
   const navigate = useNavigate();
@@ -24,8 +33,14 @@ export default function ClientDetails() {
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
+  const [contacts, setContacts] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [jobs, setJobs] = useState([]);
+
+  // Contact editing state
+  const [editingId, setEditingId] = useState(null); // contactId | 'new' | null
+  const [editForm, setEditForm] = useState(EMPTY_CONTACT_FORM());
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user || !accountId) return;
@@ -42,6 +57,7 @@ export default function ClientDetails() {
 
         if (!mounted) return;
         setProfile(clientProfile);
+        setContacts(clientProfile.allContacts || []);
         setQuotes(accountQuotes || []);
         setJobs(accountJobs || []);
       } catch (error) {
@@ -62,9 +78,93 @@ export default function ClientDetails() {
     };
   }, [user, accountId]);
 
-  const primary = profile?.primaryContact;
+  const primary = contacts.find((c) => c.is_primary) || contacts[0] || null;
   const sortedQuotes = useMemo(() => [...quotes].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)), [quotes]);
   const sortedJobs = useMemo(() => [...jobs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)), [jobs]);
+
+  // ─── Contact actions ───────────────────────────────────────────────────────
+
+  function startEdit(contact) {
+    setEditingId(contact.id);
+    setEditForm({
+      full_name: contact.full_name || '',
+      role: contact.role || '',
+      phone: contact.phone || '',
+      email: contact.email || '',
+    });
+  }
+
+  function startNew() {
+    setEditingId('new');
+    setEditForm(EMPTY_CONTACT_FORM());
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditForm(EMPTY_CONTACT_FORM());
+  }
+
+  async function handleSaveContact() {
+    if (!editForm.full_name.trim()) {
+      toast.error('שם הוא שדה חובה');
+      return;
+    }
+    setSaving(true);
+    try {
+      if (editingId === 'new') {
+        const newContact = await addContact(accountId, editForm);
+        setContacts((prev) => [...prev, newContact]);
+        toast.success('איש קשר נוסף');
+      } else {
+        await updateContactById(editingId, editForm);
+        setContacts((prev) =>
+          prev.map((c) => (c.id === editingId ? { ...c, ...editForm } : c))
+        );
+        toast.success('איש קשר עודכן');
+      }
+      cancelEdit();
+    } catch (error) {
+      toast.error('שגיאה בשמירת איש קשר', {
+        description: getDetailedErrorReason(error, 'השמירה נכשלה.'),
+        duration: 9000,
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteContact(contact) {
+    const isPrimary = contact.is_primary;
+    try {
+      await deleteContactById(contact.id);
+      setContacts((prev) => prev.filter((c) => c.id !== contact.id));
+      toast.success('איש קשר נמחק', {
+        description: isPrimary ? 'איש הקשר הראשי הוסר.' : undefined,
+      });
+    } catch (error) {
+      toast.error('שגיאה במחיקת איש קשר', {
+        description: getDetailedErrorReason(error, 'המחיקה נכשלה.'),
+        duration: 9000,
+      });
+    }
+  }
+
+  async function handleSetPrimary(contact) {
+    if (contact.is_primary) return;
+    try {
+      await setPrimaryContact(accountId, contact.id);
+      setContacts((prev) =>
+        prev.map((c) => ({ ...c, is_primary: c.id === contact.id }))
+      );
+    } catch (error) {
+      toast.error('שגיאה בעדכון איש קשר ראשי', {
+        description: getDetailedErrorReason(error, 'העדכון נכשל.'),
+        duration: 9000,
+      });
+    }
+  }
+
+  // ─── Render ────────────────────────────────────────────────────────────────
 
   if (isLoadingAuth || loading) return <LoadingSpinner />;
   if (!user) return null;
@@ -75,19 +175,24 @@ export default function ClientDetails() {
 
   return (
     <div dir="rtl" className="space-y-6 p-4 lg:p-8">
+      {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(createPageUrl('Clients'))} className="rounded-full">
           <ArrowRight className="h-5 w-5" />
         </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-slate-800">{profile.account.account_name}</h1>
-          <p className="mt-1 text-slate-500">כרטיס לקוח</p>
+          <div className="mt-1 flex items-center gap-2">
+            <ClientStatusBadge status={profile.account.status || 'active'} />
+            <ClientTypeBadge type={profile.account.client_type || 'private'} />
+          </div>
         </div>
         <Button onClick={() => navigate(createPageUrl(`ClientForm?id=${profile.account.id}`))} variant="outline">
           עריכת לקוח
         </Button>
       </div>
 
+      {/* Quick actions */}
       <div className="grid gap-4 sm:grid-cols-4">
         <Button variant="outline" className="h-auto flex-col gap-2 py-4" onClick={() => navigate(createPageUrl(`QuoteForm?account_id=${profile.account.id}`))}>
           <FileText className="h-5 w-5" />
@@ -111,27 +216,156 @@ export default function ClientDetails() {
         ) : null}
       </div>
 
+      {/* Contacts card */}
       <Card className="border-0 shadow-sm">
-        <CardHeader>
-          <CardTitle>פרטים</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle>אנשי קשר ({contacts.length})</CardTitle>
+          {editingId === null ? (
+            <Button variant="outline" size="sm" onClick={startNew} className="gap-1">
+              <Plus className="h-4 w-4" />
+              הוסף
+            </Button>
+          ) : null}
         </CardHeader>
-        <CardContent className="space-y-3 text-sm text-slate-700">
-          <div className="flex items-center gap-2">
-            <span>סטטוס:</span>
-            <Badge variant="outline">{profile.account.status || 'active'}</Badge>
-            <ClientTypeBadge type={profile.account.client_type || 'private'} />
-          </div>
-          {primary?.phone ? <div dir="ltr">טלפון: {primary.phone}</div> : null}
-          {primary?.email ? <div dir="ltr">אימייל: {primary.email}</div> : null}
-          {primary?.address_text ? (
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              {primary.address_text}
+        <CardContent className="space-y-2 pt-0">
+          {contacts.length === 0 && editingId !== 'new' ? (
+            <p className="py-2 text-sm text-slate-500">אין אנשי קשר — לחץ "הוסף" להוספה</p>
+          ) : null}
+
+          {contacts.map((contact) =>
+            editingId === contact.id ? (
+              /* Edit inline form */
+              <div key={contact.id} className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="שם מלא *"
+                    value={editForm.full_name}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, full_name: e.target.value }))}
+                  />
+                  <Input
+                    placeholder="תפקיד"
+                    value={editForm.role}
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value }))}
+                  />
+                  <Input
+                    placeholder="טלפון"
+                    value={editForm.phone}
+                    dir="ltr"
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
+                  />
+                  <Input
+                    placeholder="אימייל"
+                    value={editForm.email}
+                    dir="ltr"
+                    onChange={(e) => setEditForm((prev) => ({ ...prev, email: e.target.value }))}
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button size="sm" onClick={handleSaveContact} disabled={saving} className="gap-1" style={{ backgroundColor: '#00214d' }}>
+                    <Check className="h-3.5 w-3.5" />
+                    שמור
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={cancelEdit}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* Display row */
+              <div key={contact.id} className="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-2.5">
+                <button
+                  type="button"
+                  title={contact.is_primary ? 'ראשי' : 'הפוך לראשי'}
+                  onClick={() => handleSetPrimary(contact)}
+                  className={`flex-shrink-0 ${contact.is_primary ? 'text-amber-400' : 'text-slate-300 hover:text-amber-300'}`}
+                >
+                  <Star className="h-4 w-4" fill={contact.is_primary ? 'currentColor' : 'none'} />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm text-slate-800">{contact.full_name}</span>
+                    {contact.role ? (
+                      <span className="text-xs text-slate-500">{contact.role}</span>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                    {contact.phone ? (
+                      <a href={`tel:${contact.phone}`} dir="ltr" className="text-xs text-blue-600 hover:underline">
+                        {contact.phone}
+                      </a>
+                    ) : null}
+                    {contact.email ? (
+                      <a href={`mailto:${contact.email}`} dir="ltr" className="text-xs text-blue-600 hover:underline">
+                        {contact.email}
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(contact)}>
+                    <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => handleDeleteContact(contact)}
+                    disabled={contact.is_primary && contacts.length > 1}
+                    title={contact.is_primary && contacts.length > 1 ? 'לא ניתן למחוק את הראשי כל עוד יש אנשי קשר נוספים' : 'מחק'}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-slate-500" />
+                  </Button>
+                </div>
+              </div>
+            )
+          )}
+
+          {/* New contact inline form */}
+          {editingId === 'new' ? (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="שם מלא *"
+                  value={editForm.full_name}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, full_name: e.target.value }))}
+                />
+                <Input
+                  placeholder="תפקיד"
+                  value={editForm.role}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value }))}
+                />
+                <Input
+                  placeholder="טלפון"
+                  value={editForm.phone}
+                  dir="ltr"
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, phone: e.target.value }))}
+                />
+                <Input
+                  placeholder="אימייל"
+                  value={editForm.email}
+                  dir="ltr"
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" onClick={handleSaveContact} disabled={saving} className="gap-1" style={{ backgroundColor: '#00214d' }}>
+                  <Check className="h-3.5 w-3.5" />
+                  הוסף
+                </Button>
+                <Button size="sm" variant="outline" onClick={cancelEdit}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
+          ) : null}
+
+          {profile.account.notes ? (
+            <p className="mt-2 text-xs text-slate-500 border-t pt-2">הערות: {profile.account.notes}</p>
           ) : null}
         </CardContent>
       </Card>
 
+      {/* Quotes */}
       <Card className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle>הצעות מחיר ({sortedQuotes.length})</CardTitle>
@@ -158,6 +392,7 @@ export default function ClientDetails() {
         </CardContent>
       </Card>
 
+      {/* Jobs */}
       <Card className="border-0 shadow-sm">
         <CardHeader>
           <CardTitle>עבודות ({sortedJobs.length})</CardTitle>
