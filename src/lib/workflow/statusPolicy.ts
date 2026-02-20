@@ -1,5 +1,4 @@
 export const JOB_STATUS = Object.freeze({
-  QUOTE: 'quote',
   WAITING_SCHEDULE: 'waiting_schedule',
   WAITING_EXECUTION: 'waiting_execution',
   DONE: 'done',
@@ -16,8 +15,7 @@ export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS];
 export type QuoteStatus = (typeof QUOTE_STATUS)[keyof typeof QUOTE_STATUS];
 
 export const JOB_ALLOWED_TRANSITIONS: Record<JobStatus, JobStatus[]> = Object.freeze({
-  [JOB_STATUS.QUOTE]: [JOB_STATUS.WAITING_SCHEDULE],
-  [JOB_STATUS.WAITING_SCHEDULE]: [JOB_STATUS.WAITING_EXECUTION, JOB_STATUS.QUOTE],
+  [JOB_STATUS.WAITING_SCHEDULE]: [JOB_STATUS.WAITING_EXECUTION],
   [JOB_STATUS.WAITING_EXECUTION]: [JOB_STATUS.DONE, JOB_STATUS.WAITING_SCHEDULE],
   [JOB_STATUS.DONE]: [JOB_STATUS.DONE],
 });
@@ -49,7 +47,6 @@ export function canTransitionQuoteStatus(fromStatus: unknown, toStatus: unknown)
 
 export function getStatusForScheduling(currentStatus: unknown): JobStatus {
   if (currentStatus === JOB_STATUS.DONE) return JOB_STATUS.DONE;
-  if (currentStatus === JOB_STATUS.QUOTE) return JOB_STATUS.WAITING_SCHEDULE;
   if (currentStatus === JOB_STATUS.WAITING_SCHEDULE) return JOB_STATUS.WAITING_EXECUTION;
   if (currentStatus === JOB_STATUS.WAITING_EXECUTION) return JOB_STATUS.WAITING_EXECUTION;
   return JOB_STATUS.WAITING_SCHEDULE;

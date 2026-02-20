@@ -57,7 +57,7 @@ import GenerateInvoiceDialog from '@/components/invoice/GenerateInvoiceDialog';
 
 const TIME_OPTIONS_10_MIN = buildTenMinuteTimeOptions();
 const DEFAULT_TIME = '08:00';
-const JOB_STATUS_ORDER = ['quote', 'waiting_schedule', 'waiting_execution', 'done'];
+const JOB_STATUS_ORDER = ['waiting_schedule', 'waiting_execution', 'done'];
 
 function findStatusTransitionPath(fromStatus, toStatus) {
   if (!fromStatus || !toStatus) return null;

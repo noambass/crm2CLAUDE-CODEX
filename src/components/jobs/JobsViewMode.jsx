@@ -156,7 +156,7 @@ export function JobsListView({ jobs, navigate, isExpandedCards }) {
 }
 
 export function JobsByStatusView({ jobs, navigate, isExpandedCards }) {
-  const statusOrder = ['quote', 'waiting_schedule', 'waiting_execution', 'done'];
+  const statusOrder = ['waiting_schedule', 'waiting_execution', 'done'];
   const isExpanded = isExpandedCards === true;
 
   return (

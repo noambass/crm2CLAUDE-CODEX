@@ -1,4 +1,4 @@
-export type JobStatus = 'quote' | 'waiting_schedule' | 'waiting_execution' | 'done';
+export type JobStatus = 'waiting_schedule' | 'waiting_execution' | 'done';
 export type JobPriority = 'normal' | 'urgent';
 
 export interface JobLineItem {

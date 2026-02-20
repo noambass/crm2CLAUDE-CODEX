@@ -6,14 +6,12 @@ import { getNextAction } from '@/lib/workflow/nextActionResolver';
 const defaultJobPriorities = {
   normal: { label: 'רגיל', color: '#64748b' },
   urgent: { label: 'דחוף', color: '#ef4444' },
-  high: { label: 'גבוה', color: '#f97316' },
-  medium: { label: 'בינוני', color: '#3b82f6' },
-  low: { label: 'נמוך', color: '#64748b' },
 };
 
 const defaultClientStatuses = {
+  lead: { label: 'ליד', color: '#f59e0b' },
   active: { label: 'פעיל', color: '#10b981' },
-  inactive: { label: 'לא פעיל', color: '#64748b' },
+  inactive: { label: 'לא פעיל', color: '#94a3b8' },
 };
 
 const defaultQuoteStatuses = {

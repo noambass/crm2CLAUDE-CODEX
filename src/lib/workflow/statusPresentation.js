@@ -1,11 +1,6 @@
 import { JOB_STATUS } from '@/lib/workflow/statusPolicy';
 
 export const STATUS_PRESENTATION_MAP = Object.freeze({
-  [JOB_STATUS.QUOTE]: {
-    label: 'הצעת מחיר',
-    shortLabel: 'הצעה',
-    color: '#6366f1',
-  },
   [JOB_STATUS.WAITING_SCHEDULE]: {
     label: 'ממתין לתזמון',
     shortLabel: 'לתזמון',
@@ -17,8 +12,8 @@ export const STATUS_PRESENTATION_MAP = Object.freeze({
     color: '#0284c7',
   },
   [JOB_STATUS.DONE]: {
-    label: 'הושלם',
-    shortLabel: 'הושלם',
+    label: 'בוצע',
+    shortLabel: 'בוצע',
     color: '#10b981',
   },
 });

@@ -3,30 +3,26 @@ import {
   JOB_ALLOWED_TRANSITIONS,
   canTransitionJobStatus,
 } from '@/lib/workflow/statusPolicy';
+import { STATUS_PRESENTATION_MAP } from '@/lib/workflow/statusPresentation';
 
 // Backward-compatible exports for pages importing this module.
 export const JOB_STATUSES = JOB_STATUS;
 
 export const STATUS_CONFIG = {
-  [JOB_STATUS.QUOTE]: {
-    value: JOB_STATUS.QUOTE,
-    label: 'הצעת מחיר',
-    color: '#6366f1',
-  },
   [JOB_STATUS.WAITING_SCHEDULE]: {
     value: JOB_STATUS.WAITING_SCHEDULE,
-    label: 'ממתין לתזמון',
-    color: '#f59e0b',
+    label: STATUS_PRESENTATION_MAP[JOB_STATUS.WAITING_SCHEDULE].label,
+    color: STATUS_PRESENTATION_MAP[JOB_STATUS.WAITING_SCHEDULE].color,
   },
   [JOB_STATUS.WAITING_EXECUTION]: {
     value: JOB_STATUS.WAITING_EXECUTION,
-    label: 'ממתין לביצוע',
-    color: '#3b82f6',
+    label: STATUS_PRESENTATION_MAP[JOB_STATUS.WAITING_EXECUTION].label,
+    color: STATUS_PRESENTATION_MAP[JOB_STATUS.WAITING_EXECUTION].color,
   },
   [JOB_STATUS.DONE]: {
     value: JOB_STATUS.DONE,
-    label: 'בוצע',
-    color: '#10b981',
+    label: STATUS_PRESENTATION_MAP[JOB_STATUS.DONE].label,
+    color: STATUS_PRESENTATION_MAP[JOB_STATUS.DONE].color,
   },
 };
 
@@ -39,4 +35,3 @@ export const canTransitionStatus = (currentStatus, nextStatus) => {
 export const getNextAllowedStatuses = (currentStatus) => {
   return JOB_ALLOWED_TRANSITIONS[currentStatus] || [];
 };
-
