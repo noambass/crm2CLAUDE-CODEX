@@ -54,6 +54,11 @@ function JobCardContent({ job, isExpanded }) {
           {job.arrival_notes ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/90">{job.arrival_notes}</p> : null}
         </div>
         <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+          {total > 0 && (
+            <span dir="ltr" className="rounded-md bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+              ₪{formatMoney(total)}
+            </span>
+          )}
           <JobStatusBadge status={job.status} />
           <NextActionBadge status={job.status} />
           <PriorityBadge priority={job.priority} />
@@ -65,8 +70,18 @@ function JobCardContent({ job, isExpanded }) {
   return (
     <>
       <div className="min-w-0 flex-1">
-        <h3 className="mb-1 truncate text-sm font-semibold text-foreground">{job.title}</h3>
-        <p className="mb-1 truncate text-xs font-medium text-muted-foreground">{getAccountName(job)}</p>
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="mb-1 truncate text-sm font-semibold text-foreground">{job.title}</h3>
+            <p className="truncate text-xs font-medium text-muted-foreground">{getAccountName(job)}</p>
+          </div>
+          {total > 0 && (
+            <div dir="ltr" className="shrink-0 rounded-lg bg-blue-50 px-3 py-1.5 text-center dark:bg-blue-950/30">
+              <p className="text-[10px] text-blue-500 dark:text-blue-400">סה"כ</p>
+              <p className="text-sm font-bold text-blue-700 dark:text-blue-300">₪{formatMoney(total)}</p>
+            </div>
+          )}
+        </div>
         {getAddress(job) ? (
           <div className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -80,26 +95,26 @@ function JobCardContent({ job, isExpanded }) {
           </div>
         ) : null}
         {lineItems.length > 0 ? (
-          <div className="mt-2 border-t border-border pt-2">
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">שורות שירות</p>
+          <div className="mt-2 rounded-lg border border-border bg-muted/30 p-2.5 dark:bg-muted/10">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">שורות שירות ({lineItems.length})</p>
             <ul className="space-y-1 text-xs">
               {lineItems.map((line, idx) => {
                 const qty = Number(line.quantity) || 0;
                 const unitPrice = Number(line.unit_price) || 0;
                 const lineTotal = getLineItemTotal(line);
                 return (
-                  <li key={line.id || idx} className="flex justify-between gap-2 text-foreground">
-                    <span className="truncate">{line.description || 'שירות'}</span>
-                    <span dir="ltr" className="shrink-0">
+                  <li key={line.id || idx} className="flex items-center justify-between gap-2 text-foreground">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#00214d] text-[9px] font-bold text-white dark:bg-blue-600">{idx + 1}</span>
+                      <span className="truncate">{line.description || 'שירות'}</span>
+                    </span>
+                    <span dir="ltr" className="shrink-0 font-medium">
                       {qty} × ₪{formatMoney(unitPrice)} = ₪{formatMoney(lineTotal)}
                     </span>
                   </li>
                 );
               })}
             </ul>
-            <p dir="ltr" className="mt-1.5 text-sm font-semibold text-foreground">
-              סה״כ: ₪{formatMoney(total)}
-            </p>
           </div>
         ) : (
           <p className="mt-2 text-xs text-muted-foreground">אין שורות שירות</p>
