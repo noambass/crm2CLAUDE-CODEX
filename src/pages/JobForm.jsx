@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, ChevronDown, ChevronUp, Loader2, Plus, Save, Search, Trash2 } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronUp, Copy, GripVertical, Loader2, Plus, Save, Search, Trash2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { createPageUrl } from '@/utils';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
@@ -394,6 +395,31 @@ export default function JobForm() {
       return;
     }
     setLineItems((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function duplicateLineItem(id) {
+    setLineItems((prev) => {
+      const idx = prev.findIndex((item) => item.id === id);
+      if (idx === -1) return prev;
+      const source = prev[idx];
+      const copy = { ...source, id: crypto.randomUUID() };
+      const next = [...prev];
+      next.splice(idx + 1, 0, copy);
+      return next;
+    });
+  }
+
+  function handleLineItemsDragEnd(result) {
+    if (!result.destination) return;
+    const startIndex = result.source.index;
+    const endIndex = result.destination.index;
+    if (startIndex === endIndex) return;
+    setLineItems((prev) => {
+      const next = Array.from(prev);
+      const [removed] = next.splice(startIndex, 1);
+      next.splice(endIndex, 0, removed);
+      return next;
+    });
   }
 
   function updateJobContact(id, field, value) {
@@ -815,92 +841,156 @@ export default function JobForm() {
         {!isMobile || activeStep === 3 ? (
           <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">שורות שירות</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg">שורות שירות</CardTitle>
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                  {lineItems.length}
+                </span>
+              </div>
               <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
                 <Plus className="ml-1 h-4 w-4" /> הוסף שורה
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              {lineItems.map((item, index) => {
-                const quantity = Math.max(0, toNumber(item.quantity));
-                const unitPrice = Math.max(0, toNumber(item.unit_price));
-                const lineTotal = quantity * unitPrice;
-                const unitWithVat = calculateGross(unitPrice);
-                const lineWithVat = calculateGross(lineTotal);
+              {/* Running total banner */}
+              <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-3 dark:border-blue-800 dark:bg-blue-950/30">
+                <span className="text-sm font-medium text-blue-800 dark:text-blue-200">סה"כ כולל מע"מ</span>
+                <span dir="ltr" className="text-xl font-bold text-blue-700 dark:text-blue-300">₪{formatMoney(totalWithVat)}</span>
+              </div>
 
-                return (
-                  <div key={item.id} className="space-y-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-500 dark:text-slate-300">שורה {index + 1}</span>
-                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeLineItem(item.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+              <DragDropContext onDragEnd={handleLineItemsDragEnd}>
+                <Droppable droppableId="line-items">
+                  {(provided) => (
+                    <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-3">
+                      {lineItems.map((item, index) => {
+                        const quantity = Math.max(0, toNumber(item.quantity));
+                        const unitPrice = Math.max(0, toNumber(item.unit_price));
+                        const lineTotal = quantity * unitPrice;
+                        const lineWithVat = calculateGross(lineTotal);
+
+                        return (
+                          <Draggable key={item.id} draggableId={item.id} index={index}>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className={`rounded-xl border p-4 transition-all ${
+                                  snapshot.isDragging
+                                    ? 'border-blue-300 bg-blue-50 shadow-lg dark:border-blue-700 dark:bg-blue-950/30'
+                                    : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 mb-3">
+                                  <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing rounded p-1 hover:bg-slate-200 dark:hover:bg-slate-700">
+                                    <GripVertical className="h-4 w-4 text-slate-400" />
+                                  </div>
+                                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#00214d] text-xs font-bold text-white dark:bg-blue-600">
+                                    {index + 1}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <Input
+                                      value={item.description}
+                                      onChange={(event) => updateLineItem(item.id, 'description', event.target.value)}
+                                      placeholder="תיאור השירות / מוצר"
+                                      className="border-0 bg-transparent p-0 text-sm font-medium shadow-none focus-visible:ring-0"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-slate-400 hover:text-blue-600"
+                                      onClick={() => duplicateLineItem(item.id)}
+                                      title="שכפל שורה"
+                                    >
+                                      <Copy className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-slate-400 hover:text-red-600"
+                                      onClick={() => removeLineItem(item.id)}
+                                      title="מחק שורה"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-slate-500 dark:text-slate-400">כמות</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={item.quantity}
+                                      onChange={(event) => updateLineNumericField(item.id, 'quantity', event.target.value)}
+                                      onBlur={(event) => normalizeLineNumericField(item.id, 'quantity', event.target.value)}
+                                      onKeyDown={handleNumericInputKeyDown}
+                                      inputMode="numeric"
+                                      dir="ltr"
+                                      className="text-center"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-slate-500 dark:text-slate-400">מחיר יחידה ₪</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      value={item.unit_price}
+                                      onChange={(event) => updateLineNumericField(item.id, 'unit_price', event.target.value)}
+                                      onBlur={(event) => normalizeLineNumericField(item.id, 'unit_price', event.target.value)}
+                                      onKeyDown={handleNumericInputKeyDown}
+                                      inputMode="decimal"
+                                      dir="ltr"
+                                      className="text-center"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-slate-500 dark:text-slate-400">סה"כ שורה</Label>
+                                    <div className="flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-[#00214d] dark:border-slate-600 dark:bg-slate-900 dark:text-blue-300" dir="ltr">
+                                      ₪{formatMoney(lineTotal)}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {lineTotal > 0 && (
+                                  <div className="mt-2 flex items-center justify-end gap-2 text-xs text-slate-500 dark:text-slate-400" dir="ltr">
+                                    <span>כולל מע"מ: ₪{formatMoney(lineWithVat)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </Draggable>
+                        );
+                      })}
+                      {provided.placeholder}
                     </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
 
-                    <Input
-                      value={item.description}
-                      onChange={(event) => updateLineItem(item.id, 'description', event.target.value)}
-                      placeholder="תיאור שירות"
-                    />
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label>כמות</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={item.quantity}
-                          onChange={(event) => updateLineNumericField(item.id, 'quantity', event.target.value)}
-                          onBlur={(event) => normalizeLineNumericField(item.id, 'quantity', event.target.value)}
-                          onKeyDown={handleNumericInputKeyDown}
-                          inputMode="numeric"
-                          dir="ltr"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>מחיר יחידה (לפני מע"מ)</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.unit_price}
-                          onChange={(event) => updateLineNumericField(item.id, 'unit_price', event.target.value)}
-                          onBlur={(event) => normalizeLineNumericField(item.id, 'unit_price', event.target.value)}
-                          onKeyDown={handleNumericInputKeyDown}
-                          inputMode="decimal"
-                          dir="ltr"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid gap-2 rounded-lg bg-white p-3 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300 sm:grid-cols-2" dir="ltr">
-                      <div className="flex items-center justify-between">
-                        <span>יחידה כולל מע"מ:</span>
-                        <span className="font-medium text-slate-800 dark:text-slate-100">₪{formatMoney(unitWithVat)}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>סה"כ שורה כולל מע"מ:</span>
-                        <span className="font-medium text-slate-800 dark:text-slate-100">₪{formatMoney(lineWithVat)}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              <Button type="button" variant="outline" onClick={addLineItem} className="w-full border-dashed gap-2">
+                <Plus className="h-4 w-4" /> הוסף שורת שירות
+              </Button>
 
               {errors.line_items ? <p className="text-sm text-red-600">{errors.line_items}</p> : null}
 
-              <div className="space-y-3 rounded-xl bg-[#00173f] p-4 text-white">
-                <div className="flex items-center justify-between">
-                  <span>סה"כ לפני מע"מ</span>
-                  <span dir="ltr">₪{formatMoney(subtotal)}</span>
+              <div className="space-y-3 rounded-xl bg-gradient-to-br from-[#001335] to-[#00214d] p-5 text-white shadow-lg">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-blue-200">סה"כ לפני מע"מ ({lineItems.length} שורות)</span>
+                  <span dir="ltr" className="font-medium">₪{formatMoney(subtotal)}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>מע"מ (18%)</span>
-                  <span dir="ltr">₪{formatMoney(vatAmount)}</span>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-blue-200">מע"מ (18%)</span>
+                  <span dir="ltr" className="font-medium">₪{formatMoney(vatAmount)}</span>
                 </div>
-                <div className="flex items-center justify-between border-t border-white/20 pt-3 text-lg font-bold">
-                  <span>סה"כ כולל מע"מ</span>
-                  <span dir="ltr">₪{formatMoney(totalWithVat)}</span>
+                <div className="flex items-center justify-between border-t border-white/20 pt-3">
+                  <span className="text-lg font-bold">סה"כ כולל מע"מ</span>
+                  <span dir="ltr" className="text-2xl font-bold">₪{formatMoney(totalWithVat)}</span>
                 </div>
               </div>
             </CardContent>

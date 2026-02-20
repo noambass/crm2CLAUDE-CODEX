@@ -14,7 +14,9 @@ import {
   ListChecks,
   Mail,
   MapPin,
+  Package,
   Phone,
+  Receipt,
   Route,
   User,
 } from 'lucide-react';
@@ -582,79 +584,94 @@ export default function JobDetails() {
         </CardContent>
       </Card>
 
+      {/* Grand Total Banner */}
+      {lineItems.length > 0 && (
+        <Card className="border-0 bg-gradient-to-l from-[#001335] to-[#00214d] shadow-lg">
+          <CardContent className="p-5">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="col-span-2 sm:col-span-1">
+                <div className="flex items-center gap-2 text-blue-200">
+                  <Receipt className="h-4 w-4" />
+                  <span className="text-xs font-medium">{lineItems.length} שורות שירות</span>
+                </div>
+              </div>
+              <div className="text-center sm:text-right">
+                <p className="text-[10px] uppercase tracking-wider text-blue-300">לפני מע"מ</p>
+                <p dir="ltr" className="mt-0.5 text-lg font-semibold text-white">₪{formatMoney(subtotal)}</p>
+              </div>
+              <div className="text-center sm:text-right">
+                <p className="text-[10px] uppercase tracking-wider text-blue-300">מע"מ 18%</p>
+                <p dir="ltr" className="mt-0.5 text-lg font-semibold text-white">₪{formatMoney(vatAmount)}</p>
+              </div>
+              <div className="col-span-2 rounded-xl bg-white/15 px-4 py-2 text-center ring-1 ring-white/20 sm:col-span-1 sm:text-right">
+                <p className="text-[10px] uppercase tracking-wider text-blue-200">סה"כ כולל מע"מ</p>
+                <p dir="ltr" className="mt-0.5 text-2xl font-bold text-white">₪{formatMoney(totalWithVat)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-3 lg:[direction:ltr]">
+        {/* Service Lines Section */}
         <Card className="border border-slate-200/80 bg-gradient-to-b from-white to-slate-50/60 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:to-slate-900 lg:col-start-1 lg:col-span-2 lg:[direction:rtl]">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-lg">שורות שירות</CardTitle>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                {lineItems.length} שורות
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
+                  <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </span>
+                <CardTitle className="text-lg">שורות שירות</CardTitle>
+                <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                  {lineItems.length}
+                </span>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             {lineItems.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300">
-                לא הוגדרו שורות שירות לעבודה זו.
+              <div className="rounded-xl border border-dashed border-slate-300 bg-white/70 p-8 text-center dark:border-slate-700 dark:bg-slate-900/50">
+                <Package className="mx-auto mb-2 h-10 w-10 text-slate-300 dark:text-slate-600" />
+                <p className="text-sm text-slate-500 dark:text-slate-300">לא הוגדרו שורות שירות לעבודה זו</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {lineItems.map((line, idx) => {
                   const quantity = toNumber(line.quantity);
                   const unitPrice = toNumber(line.unit_price);
                   const lineTotal = toNumber(line.line_total) || quantity * unitPrice;
 
                   return (
-                    <div key={line.id || idx} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-slate-800 dark:text-slate-100">{line.description || 'שירות'}</p>
-                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">שורה #{idx + 1}</p>
+                    <div key={line.id || idx} className="group rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-blue-200 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-800">
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#00214d] text-xs font-bold text-white dark:bg-blue-600">
+                          {idx + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-slate-800 dark:text-slate-100">{line.description || 'שירות'}</p>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
+                            <span>
+                              כמות: <span className="font-medium text-slate-800 dark:text-slate-100">{quantity}</span>
+                            </span>
+                            <span dir="ltr">
+                              מחיר יחידה: <span className="font-medium text-slate-800 dark:text-slate-100">₪{formatMoney(unitPrice)}</span>
+                            </span>
+                          </div>
                         </div>
-                        <div dir="ltr" className="text-lg font-bold text-[#00214d] dark:text-cyan-300">
-                          ₪{formatMoney(lineTotal)}
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800">
-                          <span className="text-slate-500 dark:text-slate-300">כמות: </span>
-                          <span className="font-medium text-slate-800 dark:text-slate-100">{quantity}</span>
-                        </div>
-                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800" dir="ltr">
-                          <span className="text-slate-500 dark:text-slate-300">מחיר יחידה: </span>
-                          <span className="font-medium text-slate-800 dark:text-slate-100">₪{formatMoney(unitPrice)}</span>
-                        </div>
-                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800" dir="ltr">
-                          <span className="text-slate-500 dark:text-slate-300">סה"כ שורה: </span>
-                          <span className="font-medium text-slate-800 dark:text-slate-100">₪{formatMoney(lineTotal)}</span>
+                        <div dir="ltr" className="shrink-0 rounded-lg bg-blue-50 px-3 py-2 text-center dark:bg-blue-950/30">
+                          <p className="text-[10px] text-blue-500 dark:text-blue-400">סה"כ</p>
+                          <p className="text-lg font-bold text-[#00214d] dark:text-blue-300">₪{formatMoney(lineTotal)}</p>
                         </div>
                       </div>
                     </div>
                   );
                 })}
-
-                <div className="rounded-2xl border border-[#00214d]/20 bg-gradient-to-br from-[#001335] to-[#00214d] p-4 text-white shadow-lg">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl bg-white/10 px-3 py-2">
-                      <p className="text-xs text-blue-100">לפני מע"מ</p>
-                      <p dir="ltr" className="mt-1 text-lg font-semibold">₪{formatMoney(subtotal)}</p>
-                    </div>
-                    <div className="rounded-xl bg-white/10 px-3 py-2">
-                      <p className="text-xs text-blue-100">מע"מ (18%)</p>
-                      <p dir="ltr" className="mt-1 text-lg font-semibold">₪{formatMoney(vatAmount)}</p>
-                    </div>
-                    <div className="rounded-xl bg-white/20 px-3 py-2 ring-1 ring-white/20">
-                      <p className="text-xs text-blue-100">סה"כ כולל מע"מ</p>
-                      <p dir="ltr" className="mt-1 text-xl font-bold">₪{formatMoney(totalWithVat)}</p>
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
           </CardContent>
         </Card>
 
+        {/* Operations Details Sidebar */}
         <Card className="border-0 shadow-sm lg:col-start-3 lg:[direction:rtl]">
           <CardHeader>
             <CardTitle className="text-lg">פרטי תפעול</CardTitle>
