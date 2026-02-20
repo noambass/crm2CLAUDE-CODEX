@@ -75,3 +75,39 @@ export async function updateInvoiceWithGreenInvoiceData(
   if (error) throw error;
   return data;
 }
+
+/**
+ * Sync a local invoice record with GreenInvoice document status.
+ * Call this when you already have the GreenInvoice document data.
+ */
+export async function syncInvoiceFromGIDocument(
+  invoiceId: string,
+  giDoc: {
+    id?: string;
+    number?: string | number;
+    documentNumber?: string;
+    url?: string;
+    status?: number;
+  },
+  localStatus: string
+) {
+  const docUrl = giDoc.url
+    || (giDoc.id ? `https://app.greeninvoice.co.il/documents/${giDoc.id}` : undefined);
+
+  const patch: Record<string, unknown> = { status: localStatus };
+  if (giDoc.id) patch.greeninvoice_doc_id = giDoc.id;
+  if (giDoc.number || giDoc.documentNumber) {
+    patch.greeninvoice_doc_number = String(giDoc.number || giDoc.documentNumber || '');
+  }
+  if (docUrl) patch.greeninvoice_doc_url = docUrl;
+  patch.error_message = null; // clear previous error on successful sync
+
+  const { data, error } = await supabase
+    .from('invoices')
+    .update(patch)
+    .eq('id', invoiceId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}

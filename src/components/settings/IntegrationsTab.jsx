@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
+import { testConnection } from '@/lib/greeninvoice/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ExternalLink, Loader2, Save } from 'lucide-react';
+import { ExternalLink, Loader2, Save, Wifi, WifiOff, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { getHebrewErrorMessage } from '@/lib/errorMessages';
 
@@ -15,6 +16,8 @@ export default function IntegrationsTab() {
   const [apiSecret, setApiSecret] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [connectionResult, setConnectionResult] = useState(null); // { success, message }
 
   useEffect(() => {
     if (!user) return;
@@ -47,6 +50,7 @@ export default function IntegrationsTab() {
   const saveConfig = async () => {
     if (!user) return;
     setSaving(true);
+    setConnectionResult(null);
     try {
       const payload = {
         owner_id: user.id,
@@ -68,6 +72,30 @@ export default function IntegrationsTab() {
       toast.error(getHebrewErrorMessage(error, 'שגיאה בשמירת הגדרות האינטגרציה.'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!apiKey || !apiSecret) {
+      toast.error('יש להזין מפתח API וסוד לפני בדיקת חיבור');
+      return;
+    }
+    setTesting(true);
+    setConnectionResult(null);
+    try {
+      const result = await testConnection(apiKey, apiSecret);
+      setConnectionResult(result);
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (err) {
+      const failResult = { success: false, message: err.message || 'שגיאת חיבור' };
+      setConnectionResult(failResult);
+      toast.error(failResult.message);
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -107,7 +135,10 @@ export default function IntegrationsTab() {
               id="greeninvoice-api-key"
               type="password"
               value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                setConnectionResult(null);
+              }}
               placeholder="הזן את מפתח ה-API"
               dir="ltr"
             />
@@ -119,16 +150,52 @@ export default function IntegrationsTab() {
               id="greeninvoice-api-secret"
               type="password"
               value={apiSecret}
-              onChange={(e) => setApiSecret(e.target.value)}
+              onChange={(e) => {
+                setApiSecret(e.target.value);
+                setConnectionResult(null);
+              }}
               placeholder="הזן את סוד ה-API"
               dir="ltr"
             />
           </div>
 
-          <Button onClick={saveConfig} disabled={saving || !apiKey || !apiSecret}>
-            {saving ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Save className="ml-1 h-4 w-4" />}
-            {saving ? 'שומר...' : 'שמור הגדרות'}
-          </Button>
+          {/* Connection test result */}
+          {connectionResult && (
+            <div className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${
+              connectionResult.success
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200'
+                : 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200'
+            }`}>
+              {connectionResult.success ? (
+                <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+              ) : (
+                <XCircle className="h-4 w-4 flex-shrink-0" />
+              )}
+              <span>{connectionResult.message}</span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={saveConfig} disabled={saving || !apiKey || !apiSecret}>
+              {saving ? <Loader2 className="ml-1 h-4 w-4 animate-spin" /> : <Save className="ml-1 h-4 w-4" />}
+              {saving ? 'שומר...' : 'שמור הגדרות'}
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={handleTestConnection}
+              disabled={testing || !apiKey || !apiSecret}
+            >
+              {testing ? (
+                <Loader2 className="ml-1 h-4 w-4 animate-spin" />
+              ) : connectionResult?.success ? (
+                <Wifi className="ml-1 h-4 w-4 text-emerald-600" />
+              ) : (
+                <WifiOff className="ml-1 h-4 w-4" />
+              )}
+              {testing ? 'בודק חיבור...' : 'בדוק חיבור'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -137,6 +204,10 @@ export default function IntegrationsTab() {
           <p className="font-semibold">איך זה עובד?</p>
           <ul className="list-inside list-disc space-y-1">
             <li>בסיום עבודה ניתן להפיק מסמך אוטומטי מחשבונית ירוקה.</li>
+            <li>ניתן לבחור סוג מסמך: חשבונית מס, חשבונית מס/קבלה, הצעת מחיר ועוד.</li>
+            <li>ניתן ליצור כטיוטה לבדיקה או כמסמך סופי עם מספר רשמי.</li>
+            <li>סנכרון סטטוס אוטומטי מחשבונית ירוקה לתוך המערכת.</li>
+            <li>סגירת טיוטה (הנפקה) ישירות מדף העבודה.</li>
             <li>פרטי הלקוח והסכום נשלחים בצורה מובנית.</li>
             <li>ההגדרות נשמרות בחשבון שלך בלבד.</li>
           </ul>
