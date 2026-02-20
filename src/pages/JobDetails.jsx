@@ -12,11 +12,13 @@ import {
   ExternalLink,
   FileText,
   ListChecks,
+  Loader2,
   Mail,
   MapPin,
   Package,
   Phone,
   Receipt,
+  RefreshCw,
   Route,
   User,
 } from 'lucide-react';
@@ -43,7 +45,14 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
-import { getLatestInvoiceForJob } from '@/data/invoicesRepo';
+import { listInvoicesByJob, syncInvoiceFromGIDocument } from '@/data/invoicesRepo';
+import {
+  getToken,
+  getDocument,
+  closeDocument,
+  mapGIStatusToLocal,
+  DOC_TYPE_LABELS,
+} from '@/lib/greeninvoice/client';
 import GenerateInvoiceDialog from '@/components/invoice/GenerateInvoiceDialog';
 
 const TIME_OPTIONS_10_MIN = buildTenMinuteTimeOptions();
@@ -131,7 +140,9 @@ export default function JobDetails() {
   const [scheduleData, setScheduleData] = useState({ date: '', time: DEFAULT_TIME });
   const [manualStatus, setManualStatus] = useState('');
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
-  const [latestInvoice, setLatestInvoice] = useState(null);
+  const [invoices, setInvoices] = useState([]);
+  const [syncingInvoiceId, setSyncingInvoiceId] = useState(null);
+  const [closingInvoiceId, setClosingInvoiceId] = useState(null);
 
   useEffect(() => {
     if (!user || !jobId) return;
@@ -175,10 +186,10 @@ export default function JobDetails() {
         setJobContacts((contactsRes.data || []).map(normalizeJobContact));
         setClientPrimaryContact(clientContactRes.data || null);
 
-        // Load latest invoice for this job
+        // Load all invoices for this job
         try {
-          const invoice = await getLatestInvoiceForJob(jobId);
-          if (mounted) setLatestInvoice(invoice);
+          const invList = await listInvoicesByJob(jobId);
+          if (mounted) setInvoices(invList);
         } catch {
           // non-critical – table may not exist yet
         }
@@ -425,13 +436,81 @@ export default function JobDetails() {
     }
   }
 
-  async function reloadInvoice() {
+  async function reloadInvoices() {
     if (!jobId) return;
     try {
-      const inv = await getLatestInvoiceForJob(jobId);
-      setLatestInvoice(inv);
+      const invList = await listInvoicesByJob(jobId);
+      setInvoices(invList);
     } catch {
       // ignore
+    }
+  }
+
+  async function handleSyncInvoice(invoice) {
+    if (!invoice?.greeninvoice_doc_id || !user) return;
+    setSyncingInvoiceId(invoice.id);
+    try {
+      const { data: configData } = await supabase
+        .from('app_configs')
+        .select('config_data')
+        .eq('owner_id', user.id)
+        .eq('config_type', 'greeninvoice_api')
+        .limit(1)
+        .maybeSingle();
+
+      const apiKey = configData?.config_data?.api_key;
+      const apiSecret = configData?.config_data?.api_secret;
+      if (!apiKey || !apiSecret) {
+        toast.error('חסרים פרטי חיבור לחשבונית ירוקה');
+        return;
+      }
+
+      const token = await getToken(apiKey, apiSecret);
+      const giDoc = await getDocument(token, invoice.greeninvoice_doc_id);
+      const localStatus = mapGIStatusToLocal(giDoc.status);
+      await syncInvoiceFromGIDocument(invoice.id, giDoc, localStatus);
+      await reloadInvoices();
+      toast.success('סטטוס המסמך עודכן בהצלחה');
+    } catch (err) {
+      console.error('Sync invoice error:', err);
+      toast.error('שגיאה בסנכרון סטטוס', { description: err.message });
+    } finally {
+      setSyncingInvoiceId(null);
+    }
+  }
+
+  async function handleCloseInvoice(invoice) {
+    if (!invoice?.greeninvoice_doc_id || !user) return;
+    setClosingInvoiceId(invoice.id);
+    try {
+      const { data: configData } = await supabase
+        .from('app_configs')
+        .select('config_data')
+        .eq('owner_id', user.id)
+        .eq('config_type', 'greeninvoice_api')
+        .limit(1)
+        .maybeSingle();
+
+      const apiKey = configData?.config_data?.api_key;
+      const apiSecret = configData?.config_data?.api_secret;
+      if (!apiKey || !apiSecret) {
+        toast.error('חסרים פרטי חיבור לחשבונית ירוקה');
+        return;
+      }
+
+      const token = await getToken(apiKey, apiSecret);
+      const giDoc = await closeDocument(token, invoice.greeninvoice_doc_id);
+      const localStatus = mapGIStatusToLocal(giDoc.status);
+      await syncInvoiceFromGIDocument(invoice.id, giDoc, localStatus);
+      await reloadInvoices();
+      toast.success('המסמך נסגר ואושר בהצלחה', {
+        description: giDoc.number ? `מספר מסמך: ${giDoc.number}` : undefined,
+      });
+    } catch (err) {
+      console.error('Close invoice error:', err);
+      toast.error('שגיאה בסגירת מסמך', { description: err.message });
+    } finally {
+      setClosingInvoiceId(null);
     }
   }
 
@@ -782,52 +861,120 @@ export default function JobDetails() {
         </CardContent>
       </Card>
 
-      {latestInvoice && (
+      {invoices.length > 0 && (
         <Card className="border border-emerald-200 bg-emerald-50/50 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <FileText className="h-5 w-5 text-emerald-600" />
-                חשבונית מס
+                <Receipt className="h-5 w-5 text-emerald-600" />
+                מסמכים – חשבונית ירוקה
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                  {invoices.length}
+                </span>
               </CardTitle>
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${
-                latestInvoice.status === 'draft'
-                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                  : latestInvoice.status === 'error'
-                    ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-              }`}>
-                {latestInvoice.status === 'draft' ? 'טיוטה' : latestInvoice.status === 'error' ? 'שגיאה' : latestInvoice.status === 'pending' ? 'בתהליך' : latestInvoice.status}
-              </span>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {latestInvoice.greeninvoice_doc_number && (
-              <div className="flex justify-between">
-                <span className="text-slate-500">מספר מסמך</span>
-                <span className="font-medium">{latestInvoice.greeninvoice_doc_number}</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-slate-500">סכום כולל מע"מ</span>
-              <span className="font-medium" dir="ltr">₪{formatMoney(latestInvoice.grand_total)}</span>
-            </div>
-            {latestInvoice.greeninvoice_doc_url && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2 w-full border-emerald-300 text-emerald-700 hover:bg-emerald-100"
-                onClick={() => window.open(latestInvoice.greeninvoice_doc_url, '_blank', 'noopener,noreferrer')}
-              >
-                <ExternalLink className="ml-2 h-4 w-4" />
-                צפה בחשבונית ירוקה
-              </Button>
-            )}
-            {latestInvoice.error_message && (
-              <p className="rounded-lg bg-red-50 p-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-300">
-                {latestInvoice.error_message}
-              </p>
-            )}
+          <CardContent className="space-y-3">
+            {invoices.map((inv) => {
+              const statusConfig = {
+                draft: { label: 'טיוטה', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+                open: { label: 'פתוח', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+                closed: { label: 'סגור', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+                cancelled: { label: 'מבוטל', className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
+                error: { label: 'שגיאה', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
+                pending: { label: 'בתהליך', className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
+              };
+              const sc = statusConfig[inv.status] || statusConfig.pending;
+              const docLabel = DOC_TYPE_LABELS[inv.doc_type] || 'מסמך';
+              const isSyncing = syncingInvoiceId === inv.id;
+              const isClosing = closingInvoiceId === inv.id;
+
+              return (
+                <div
+                  key={inv.id}
+                  className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-emerald-600" />
+                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                        {docLabel}
+                      </span>
+                      {inv.greeninvoice_doc_number && (
+                        <span className="text-xs text-slate-500">#{inv.greeninvoice_doc_number}</span>
+                      )}
+                    </div>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${sc.className}`}>
+                      {sc.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
+                    <span dir="ltr" className="font-medium">
+                      ₪{formatMoney(inv.grand_total)}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {inv.created_at
+                        ? format(new Date(inv.created_at), 'dd/MM/yyyy HH:mm', { locale: he })
+                        : ''}
+                    </span>
+                  </div>
+
+                  {inv.error_message && (
+                    <p className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-300">
+                      {inv.error_message}
+                    </p>
+                  )}
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {inv.greeninvoice_doc_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-emerald-300 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:text-emerald-300"
+                        onClick={() => window.open(inv.greeninvoice_doc_url, '_blank', 'noopener,noreferrer')}
+                      >
+                        <ExternalLink className="ml-1 h-3.5 w-3.5" />
+                        צפה במסמך
+                      </Button>
+                    )}
+
+                    {inv.greeninvoice_doc_id && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSyncInvoice(inv)}
+                        disabled={isSyncing || isClosing}
+                      >
+                        {isSyncing ? (
+                          <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="ml-1 h-3.5 w-3.5" />
+                        )}
+                        סנכרן סטטוס
+                      </Button>
+                    )}
+
+                    {inv.status === 'draft' && inv.greeninvoice_doc_id && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-blue-300 text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-300"
+                        onClick={() => handleCloseInvoice(inv)}
+                        disabled={isSyncing || isClosing}
+                      >
+                        {isClosing ? (
+                          <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="ml-1 h-3.5 w-3.5" />
+                        )}
+                        סגור והנפק
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -923,7 +1070,7 @@ export default function JobDetails() {
         onOpenChange={setInvoiceDialogOpen}
         job={job}
         accountName={accountName}
-        onInvoiceCreated={reloadInvoice}
+        onInvoiceCreated={reloadInvoices}
       />
     </div>
   );
