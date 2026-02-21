@@ -15,6 +15,8 @@
     "seed:workflow-fixtures": "node scripts/seed-workflow-fixtures.mjs"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.46",
+    "@ai-sdk/openai": "^3.0.30",
     "@hello-pangea/dnd": "^17.0.0",
     "@hookform/resolvers": "^4.1.2",
     "@radix-ui/react-accordion": "^1.2.3",
@@ -48,6 +50,7 @@
     "@stripe/stripe-js": "^5.2.0",
     "@supabase/supabase-js": "^2.93.3",
     "@tanstack/react-query": "^5.84.1",
+    "ai": "^6.0.97",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
