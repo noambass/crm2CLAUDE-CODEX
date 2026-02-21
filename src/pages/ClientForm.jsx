@@ -188,9 +188,9 @@ export default function ClientForm() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6 text-right" dir="rtl">
         {/* Type tabs */}
-        <Tabs value={formData.clientType} onValueChange={handleTabChange}>
+        <Tabs dir="rtl" value={formData.clientType} onValueChange={handleTabChange}>
           <TabsList className="w-full grid grid-cols-3">
             <TabsTrigger value="private">לקוח פרטי</TabsTrigger>
             <TabsTrigger value="company">חברה</TabsTrigger>
@@ -391,11 +391,11 @@ export default function ClientForm() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>סטטוס לקוח</Label>
-              <Select value={formData.status} onValueChange={(v) => set('status', v)}>
+              <Select dir="rtl" value={formData.status} onValueChange={(v) => set('status', v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent dir="rtl">
                   {STATUS_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}

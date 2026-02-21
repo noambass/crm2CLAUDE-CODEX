@@ -155,7 +155,7 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
           <DialogTitle className="text-right">הוסף לקוח חדש</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 text-right">
+        <div className="space-y-4 text-right" dir="rtl">
           <div className="space-y-2">
             <Label htmlFor="account_name">שם לקוח / חברה *</Label>
             <Input
@@ -194,6 +194,7 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
             <GooglePlacesInput
               id="address_text"
               value={formData.address_text}
+              dir="rtl"
               onChangeText={handleAddressChange}
               onPlaceSelected={({ addressText }) => handleAddressChange(addressText, { isManual: false })}
               onAddressAutofix={({ normalized }) => setAddressAssist(`הכתובת תוקנה אוטומטית: ${normalized}`)}
@@ -206,11 +207,11 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
 
           <div className="space-y-2">
             <Label>סוג לקוח</Label>
-            <Select value={formData.client_type} onValueChange={(value) => handleChange('client_type', value)}>
+            <Select dir="rtl" value={formData.client_type} onValueChange={(value) => handleChange('client_type', value)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent dir="rtl">
                 {CLIENT_TYPE_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
