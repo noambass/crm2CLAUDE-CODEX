@@ -228,10 +228,15 @@ export default function Clients() {
     <div dir="rtl" className="app-page">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 lg:text-3xl">לקוחות</h1>
-          <p className="mt-1 text-slate-500">{profiles.length} לקוחות פעילים/לא פעילים</p>
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground lg:text-3xl">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/20">
+              <Users className="h-5 w-5" />
+            </span>
+            לקוחות
+          </h1>
+          <p className="mt-1 text-muted-foreground">{profiles.length} לקוחות פעילים/לא פעילים</p>
         </div>
-        <Button onClick={() => navigate(createPageUrl('ClientForm'))} className="bg-primary text-primary-foreground hover:bg-primary/90">
+        <Button onClick={() => navigate(createPageUrl('ClientForm'))} className="bg-primary text-primary-foreground shadow-sm hover:bg-primary/90">
           <Plus className="ml-2 h-4 w-4" />
           לקוח חדש
         </Button>
@@ -285,7 +290,7 @@ export default function Clients() {
             <NativeSelect
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
             >
               <option value="all">כל הסטטוסים</option>
               <option value="active">פעיל</option>
@@ -326,11 +331,11 @@ export default function Clients() {
                     className="text-right"
                   >
                     <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <h4 className="font-semibold text-slate-800">{getAccountLabel(account)}</h4>
+                      <h4 className="font-semibold text-foreground">{getAccountLabel(account)}</h4>
                       <Badge variant="outline">{STATUS_BADGE[status] || status}</Badge>
                       <ClientTypeBadge type={clientType} />
                     </div>
-                    <div className="space-y-1 text-xs text-slate-500">
+                    <div className="space-y-1 text-xs text-muted-foreground">
                       {contact?.phone ? (
                         <div className="flex items-center gap-1" dir="ltr">
                           <Phone className="h-3 w-3 shrink-0" />
@@ -355,7 +360,7 @@ export default function Clients() {
                     data-testid={`client-type-${account.id}`}
                     value={clientType}
                     onChange={(event) => changeClientType(profile, event.target.value)}
-                    className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs"
+                    className="rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground"
                   >
                     {CLIENT_TYPE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -364,7 +369,7 @@ export default function Clients() {
                     ))}
                   </NativeSelect>
 
-                  <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                  <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-3">
                     <Button type="button" size="sm" variant="outline" onClick={() => navigate(createPageUrl(`QuoteForm?account_id=${account.id}`))}>
                       <FileText className="ml-1 h-4 w-4" />
                       הצעה
