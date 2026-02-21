@@ -40,6 +40,7 @@ import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import CreateNewClientDialog from '@/components/job/CreateNewClientDialog';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
+import ServicePickerButton from '@/components/shared/ServicePickerButton';
 
 const EMPTY_LINE_ITEM = () => ({
   id: crypto.randomUUID(),
@@ -753,12 +754,22 @@ export default function QuoteForm() {
 
         {!isMobile || activeStep === 3 ? (
           <Card className="border-0 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
               <CardTitle className="text-lg">שורות שירות</CardTitle>
-              <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                <Plus className="ml-1 h-4 w-4" />
-                הוסף שורה
-              </Button>
+              <div className="flex gap-2 flex-wrap">
+                <ServicePickerButton
+                  onSelect={({ description, unit_price }) =>
+                    setLineItems((prev) => [
+                      ...prev,
+                      { id: crypto.randomUUID(), description, quantity: 1, unit_price },
+                    ])
+                  }
+                />
+                <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+                  <Plus className="ml-1 h-4 w-4" />
+                  הוסף שורה
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {lineItems.map((item, index) => {
