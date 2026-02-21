@@ -3,7 +3,8 @@ import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import {
   Settings as SettingsIcon, Users,
-  Plus, Edit, Trash2, Save, Loader2, MoreVertical, LogOut
+  Plus, Edit, Trash2, Save, Loader2, MoreVertical, LogOut,
+  Palette, Briefcase, Plug, SlidersHorizontal,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -44,6 +46,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
 import EmptyState from "@/components/shared/EmptyState";
+import GeneralSettingsTab from "@/components/settings/GeneralSettingsTab";
+import CustomizationTab from "@/components/settings/CustomizationTab";
+import JobTypesTab from "@/components/settings/JobTypesTab";
+import IntegrationsTab from "@/components/settings/IntegrationsTab";
 
 const roleLabels = {
   admin: 'מנהל',
@@ -56,6 +62,7 @@ export default function Settings() {
   const { user, isLoadingAuth, logout } = useAuth();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [configs, setConfigs] = useState([]);
 
   // Employee dialog
   const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
@@ -81,13 +88,22 @@ export default function Settings() {
   const loadData = async () => {
     if (!user) return;
     try {
-      const employeesRes = await supabase
-        .from('employees')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('created_at', { ascending: false });
+      const [employeesRes, configsRes] = await Promise.all([
+        supabase
+          .from('employees')
+          .select('*')
+          .eq('owner_id', user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('app_configs')
+          .select('*')
+          .eq('owner_id', user.id),
+      ]);
 
       if (employeesRes.error) throw employeesRes.error;
+      if (configsRes.error) throw configsRes.error;
+
+      setConfigs(configsRes.data || []);
 
       const normalizedEmployees = (employeesRes.data || []).map((row) => ({
         id: row.id,
@@ -200,8 +216,7 @@ export default function Settings() {
   };
 
   const deleteEmployee = async () => {
-    if (!employeeToDelete) return;
-    if (!user) return;
+    if (!employeeToDelete || !user) return;
     try {
       const { error } = await supabase
         .from('employees')
@@ -218,8 +233,6 @@ export default function Settings() {
     }
   };
 
-
-
   if (isLoadingAuth) return <LoadingSpinner />;
   if (!user) return null;
   if (loading) return <LoadingSpinner />;
@@ -228,15 +241,45 @@ export default function Settings() {
     <div dir="rtl" className="p-4 lg:p-8 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 flex items-center gap-3">
+        <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3">
           <SettingsIcon className="w-8 h-8" />
           הגדרות
         </h1>
-        <p className="text-slate-500 mt-1">נהל עובדים</p>
+        <p className="text-slate-500 mt-1">נהל והתאם אישית את המערכת</p>
       </div>
 
-      {/* Employees */}
-      <Card className="border-0 shadow-sm">
+      <Tabs defaultValue="general" dir="rtl">
+        <TabsList className="flex flex-wrap h-auto gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-full lg:w-auto">
+          <TabsTrigger value="general" className="flex items-center gap-1.5 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700">
+            <SlidersHorizontal className="w-4 h-4" />
+            כללי
+          </TabsTrigger>
+          <TabsTrigger value="employees" className="flex items-center gap-1.5 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700">
+            <Users className="w-4 h-4" />
+            עובדים
+          </TabsTrigger>
+          <TabsTrigger value="customization" className="flex items-center gap-1.5 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700">
+            <Palette className="w-4 h-4" />
+            התאמה אישית
+          </TabsTrigger>
+          <TabsTrigger value="job-types" className="flex items-center gap-1.5 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700">
+            <Briefcase className="w-4 h-4" />
+            סוגי עבודות
+          </TabsTrigger>
+          <TabsTrigger value="integrations" className="flex items-center gap-1.5 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700">
+            <Plug className="w-4 h-4" />
+            אינטגרציות
+          </TabsTrigger>
+        </TabsList>
+
+        {/* General Settings Tab */}
+        <TabsContent value="general" className="mt-6">
+          <GeneralSettingsTab />
+        </TabsContent>
+
+        {/* Employees Tab */}
+        <TabsContent value="employees" className="mt-6 space-y-6">
+          <Card className="border-0 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-lg">ניהול עובדים</CardTitle>
@@ -259,9 +302,9 @@ export default function Settings() {
               ) : (
                 <div className="space-y-3">
                   {employees.map((employee) => (
-                    <div 
+                    <div
                       key={employee.id}
-                      className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors"
+                      className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                     >
                       <Avatar className="h-12 w-12">
                         <AvatarFallback className="bg-emerald-100 text-emerald-700">
@@ -269,7 +312,7 @@ export default function Settings() {
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <h4 className="font-semibold text-slate-800">{employee.full_name}</h4>
+                        <h4 className="font-semibold text-slate-800 dark:text-slate-100">{employee.full_name}</h4>
                         <p className="text-sm text-slate-500" dir="ltr">{employee.phone}</p>
                       </div>
                       <Badge variant="outline" className={
@@ -280,7 +323,7 @@ export default function Settings() {
                         {roleLabels[employee.role]}
                       </Badge>
                       <Badge variant="outline" className={
-                        employee.status === 'active' 
+                        employee.status === 'active'
                           ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                           : 'bg-slate-100 text-slate-500 border-slate-200'
                       }>
@@ -297,7 +340,7 @@ export default function Settings() {
                             <Edit className="w-4 h-4 ml-2" />
                             עריכה
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             onClick={() => {
                               setEmployeeToDelete(employee);
                               setDeleteEmployeeDialogOpen(true);
@@ -316,18 +359,36 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-      <Card className="border-0 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg">חשבון</CardTitle>
-          <CardDescription>ניהול התחברות משתמש</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button type="button" variant="outline" className="text-red-600" onClick={() => logout()}>
-            <LogOut className="w-4 h-4 ml-2" />
-            התנתקות
-          </Button>
-        </CardContent>
-      </Card>
+          {/* Account card stays in employees tab for easy access */}
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg">חשבון</CardTitle>
+              <CardDescription>ניהול התחברות משתמש</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button type="button" variant="outline" className="text-red-600" onClick={() => logout()}>
+                <LogOut className="w-4 h-4 ml-2" />
+                התנתקות
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Customization Tab */}
+        <TabsContent value="customization" className="mt-6">
+          <CustomizationTab configs={configs} setConfigs={setConfigs} />
+        </TabsContent>
+
+        {/* Job Types Tab */}
+        <TabsContent value="job-types" className="mt-6">
+          <JobTypesTab />
+        </TabsContent>
+
+        {/* Integrations Tab */}
+        <TabsContent value="integrations" className="mt-6">
+          <IntegrationsTab />
+        </TabsContent>
+      </Tabs>
 
       {/* Employee Dialog */}
       <Dialog open={employeeDialogOpen} onOpenChange={setEmployeeDialogOpen}>
@@ -393,7 +454,12 @@ export default function Settings() {
             </div>
           </div>
           <DialogFooter className="flex-row-reverse gap-2">
-            <Button onClick={saveEmployee} disabled={savingEmployee || !employeeForm.full_name || !employeeForm.phone} style={{ backgroundColor: '#00214d' }} className="hover:opacity-90">
+            <Button
+              onClick={saveEmployee}
+              disabled={savingEmployee || !employeeForm.full_name || !employeeForm.phone}
+              style={{ backgroundColor: '#00214d' }}
+              className="hover:opacity-90"
+            >
               {savingEmployee ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Save className="w-4 h-4 ml-2" />}
               שמור
             </Button>
@@ -408,7 +474,7 @@ export default function Settings() {
           <AlertDialogHeader>
             <AlertDialogTitle>מחיקת עובד</AlertDialogTitle>
             <AlertDialogDescription>
-              האם אתה בטוח שברצונך למחוק את העובד "{employeeToDelete?.full_name}"?
+              האם אתה בטוח שברצונך למחוק את העובד &quot;{employeeToDelete?.full_name}&quot;?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row-reverse gap-2">
@@ -417,8 +483,6 @@ export default function Settings() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </div>
   );
 }
-
