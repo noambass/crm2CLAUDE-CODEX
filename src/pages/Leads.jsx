@@ -218,13 +218,18 @@ export default function Leads() {
     <div dir="rtl" className="app-page">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 lg:text-3xl">לידים</h1>
-          <p className="mt-1 text-slate-500">{profiles.length} לידים במערכת</p>
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground lg:text-3xl">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/20">
+              <UserPlus className="h-5 w-5" />
+            </span>
+            לידים
+          </h1>
+          <p className="mt-1 text-muted-foreground">{profiles.length} לידים במערכת</p>
         </div>
         <Button
           data-testid="lead-new-button"
           onClick={() => navigate(createPageUrl('ClientForm?status=lead'))}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
+          className="bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
         >
           <Plus className="ml-2 h-4 w-4" />
           ליד חדש
@@ -266,7 +271,7 @@ export default function Leads() {
           </div>
 
           <div className="relative flex-1">
-            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="חיפוש לפי שם, טלפון או אימייל"
               value={searchQuery}
@@ -307,13 +312,13 @@ export default function Leads() {
                     className="text-right"
                   >
                     <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <h4 className="font-semibold text-slate-800">{getAccountLabel(account)}</h4>
+                      <h4 className="font-semibold text-foreground">{getAccountLabel(account)}</h4>
                       <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
                         ליד
                       </span>
                       <ClientTypeBadge type={clientType} />
                     </div>
-                    <div className="space-y-1 text-xs text-slate-500">
+                    <div className="space-y-1 text-xs text-muted-foreground">
                       {contact?.phone ? (
                         <div className="flex items-center gap-1" dir="ltr">
                           <Phone className="h-3 w-3 shrink-0" />
@@ -338,7 +343,7 @@ export default function Leads() {
                     data-testid={`lead-client-type-${account.id}`}
                     value={clientType}
                     onChange={(event) => changeClientType(profile, event.target.value)}
-                    className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs"
+                    className="rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground"
                   >
                     {CLIENT_TYPE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -347,7 +352,7 @@ export default function Leads() {
                     ))}
                   </NativeSelect>
 
-                  <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                  <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-3">
                     <Button type="button" size="sm" variant="outline" onClick={() => navigate(createPageUrl(`QuoteForm?account_id=${account.id}`))}>
                       <FileText className="ml-1 h-4 w-4" />
                       הצעה

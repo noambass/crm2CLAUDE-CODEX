@@ -97,13 +97,18 @@ export default function Quotes() {
     <div dir="rtl" className="app-page">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 lg:text-3xl">הצעות מחיר</h1>
-          <p className="mt-1 text-slate-500">{quotes.length} הצעות במערכת</p>
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground lg:text-3xl">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/20">
+              <FileText className="h-5 w-5" />
+            </span>
+            הצעות מחיר
+          </h1>
+          <p className="mt-1 text-muted-foreground">{quotes.length} הצעות במערכת</p>
         </div>
         <Button
           onClick={() => navigate(createPageUrl('QuoteForm'))}
           
-          className="app-cta shadow-lg"
+          className="bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
         >
           <Plus className="ml-2 h-4 w-4" />
           הצעה חדשה
@@ -204,14 +209,14 @@ export default function Quotes() {
             return (
               <Card
                 key={quote.id}
-                className="cursor-pointer border border-slate-200/80 bg-white shadow-sm transition-all hover:border-primary/20 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/80"
+                className="cursor-pointer border border-border bg-card shadow-sm transition-all hover:border-primary/20 hover:shadow-md"
                 onClick={() => navigate(createPageUrl(`QuoteDetails?id=${quote.id}`))}
               >
                 <CardContent className="p-3.5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{quoteTitle}</h4>
+                        <h4 className="truncate text-sm font-semibold text-foreground">{quoteTitle}</h4>
                         <Badge
                           variant="outline"
                           style={{
@@ -225,24 +230,24 @@ export default function Quotes() {
                         </Badge>
                       </div>
 
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
+                      <p className="mt-1 text-xs text-muted-foreground">
                         {accountName} • #{String(quote.id || '').slice(0, 8)} • {format(new Date(quote.created_at), 'dd/MM/yyyy', { locale: he })}
                       </p>
 
-                      <p className="mt-1 line-clamp-1 text-xs text-slate-700 dark:text-slate-200">
+                      <p className="mt-1 line-clamp-1 text-xs text-foreground/80">
                         <span className="font-medium">שירותים:</span>{' '}
                         {servicesPreview || 'לא הוגדרו שירותים'}
                         {extraServicesCount > 0 ? ` • +${extraServicesCount} נוספים` : ''}
                       </p>
 
                       {quote.notes ? (
-                        <p className="mt-1 line-clamp-1 text-xs text-slate-500 dark:text-slate-300">{quote.notes}</p>
+                        <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{quote.notes}</p>
                       ) : null}
                     </div>
 
                     <div className="shrink-0 text-left">
-                      <p className="text-[11px] text-slate-500 dark:text-slate-300">כולל מע"מ</p>
-                      <p className="text-lg font-bold text-slate-900 dark:text-slate-100" dir="ltr">
+                      <p className="text-[11px] text-muted-foreground">כולל מע"מ</p>
+                      <p className="text-lg font-bold text-foreground" dir="ltr">
                         ₪{formatCurrency(Number(quote.total || 0) * 1.18)}
                       </p>
                     </div>
