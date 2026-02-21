@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 
 const DEFAULT_BUSINESS_SETTINGS = {
   business_name: '',
-  vat_rate: 17,
+  vat_rate: 18,
   workday_start: '08:00',
   workday_end: '18:00',
 };
