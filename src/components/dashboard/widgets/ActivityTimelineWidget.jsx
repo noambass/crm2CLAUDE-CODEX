@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format, formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { he } from 'date-fns/locale';
-import { Clock, Briefcase, FileText, UserPlus } from 'lucide-react';
+import { Clock, Briefcase, FileText } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 

@@ -131,16 +131,3 @@ export async function scheduleMapJob(jobId, scheduledStartAt, currentStatus) {
   if (error) throw error;
   return { scheduled_start_at: normalizedScheduledStartAt, status: nextStatus };
 }
-
-export async function getRouteEstimate({ origin, destination, departureTime }) {
-  const resp = await fetch('/api/route', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ origin, destination, departureTime }),
-  });
-  if (!resp.ok) {
-    const body = await resp.json().catch(() => ({}));
-    throw new Error(body.error || 'Route failed');
-  }
-  return resp.json();
-}

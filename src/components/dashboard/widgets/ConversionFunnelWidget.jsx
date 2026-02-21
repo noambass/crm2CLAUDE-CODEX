@@ -3,7 +3,7 @@ import { GitBranch, ArrowDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function ConversionFunnelWidget({ data }) {
-  const { allQuotes, allJobs } = data;
+  const { allQuotes } = data;
 
   const totalQuotes = allQuotes?.length || 0;
   const sentQuotes = allQuotes?.filter((q) => q.status === 'sent' || q.status === 'approved').length || 0;

@@ -10,18 +10,6 @@ export async function listInvoicesByJob(jobId: string) {
   return data || [];
 }
 
-export async function getLatestInvoiceForJob(jobId: string) {
-  const { data, error } = await supabase
-    .from('invoices')
-    .select('*')
-    .eq('job_id', jobId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
-}
-
 export async function createInvoiceRecord(input: {
   jobId: string;
   accountId: string;

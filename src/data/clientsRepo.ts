@@ -5,16 +5,37 @@ export function getAccountLabel(account) {
   return String(account?.account_name || '').trim() || 'ללא לקוח';
 }
 
-export async function listClientProfiles(searchText = '') {
-  const { data: accounts, error: accountsError } = await supabase
+export async function listClientProfiles(filtersOrSearchText: { searchText?: string; statuses?: string[] } | string = '') {
+  const searchText =
+    typeof filtersOrSearchText === 'string'
+      ? filtersOrSearchText
+      : String(filtersOrSearchText?.searchText || '');
+  const statuses =
+    typeof filtersOrSearchText === 'string'
+      ? []
+      : Array.isArray(filtersOrSearchText?.statuses)
+        ? filtersOrSearchText.statuses.filter(Boolean)
+        : [];
+
+  let accountsQuery = supabase
     .from('accounts')
     .select('*')
     .order('created_at', { ascending: false });
+
+  if (statuses.length > 0) {
+    accountsQuery = accountsQuery.in('status', statuses);
+  }
+
+  const { data: accounts, error: accountsError } = await accountsQuery;
   if (accountsError) throw accountsError;
+
+  const accountIds = (accounts || []).map((account) => account.id).filter(Boolean);
+  if (accountIds.length === 0) return [];
 
   const { data: contacts, error: contactsError } = await supabase
     .from('contacts')
     .select('*')
+    .in('account_id', accountIds)
     .eq('is_primary', true)
     .order('created_at', { ascending: true });
   if (contactsError) throw contactsError;
@@ -40,6 +61,28 @@ export async function listClientProfiles(searchText = '') {
       c?.email?.toLowerCase().includes(q)
     );
   });
+}
+
+export async function setAccountStatus(accountId: string, status: 'lead' | 'active' | 'inactive') {
+  const { data, error } = await supabase
+    .from('accounts')
+    .update({ status })
+    .eq('id', accountId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function setAccountClientType(accountId: string, clientType: 'private' | 'company' | 'bath_company') {
+  const { data, error } = await supabase
+    .from('accounts')
+    .update({ client_type: clientType })
+    .eq('id', accountId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 export async function getClientProfile(accountId) {
@@ -172,21 +215,6 @@ export async function updateClient(accountId, input) {
 export async function deleteClient(accountId) {
   const { error } = await supabase.from('accounts').delete().eq('id', accountId);
   if (error) throw error;
-}
-
-export async function findClientByPhone(phone) {
-  if (!phone) return null;
-  const normalized = String(phone).replace(/\D/g, '');
-  if (!normalized) return null;
-
-  const { data, error } = await supabase
-    .from('contacts')
-    .select('id, account_id, full_name, phone')
-    .not('phone', 'is', null);
-  if (error) throw error;
-
-  const match = (data || []).find((c) => String(c.phone || '').replace(/\D/g, '') === normalized);
-  return match || null;
 }
 
 // ─── Contact CRUD ─────────────────────────────────────────────────────────────

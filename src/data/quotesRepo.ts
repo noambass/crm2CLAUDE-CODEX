@@ -113,19 +113,6 @@ export async function saveDraftQuote(input) {
   return quoteId;
 }
 
-export async function updateQuoteStatus(quoteId, status) {
-  const allowed = new Set(['draft', 'sent', 'approved', 'rejected']);
-  if (!allowed.has(status)) {
-    throw new Error('סטטוס הצעה לא חוקי');
-  }
-
-  const { error } = await supabase
-    .from('quotes')
-    .update({ status })
-    .eq('id', quoteId);
-  if (error) throw error;
-}
-
 export async function listQuotesByAccount(accountId) {
   const { data, error } = await supabase
     .from('quotes')
@@ -136,8 +123,3 @@ export async function listQuotesByAccount(accountId) {
   return data || [];
 }
 
-export async function convertQuoteToJob(quoteId) {
-  const { data, error } = await supabase.rpc('convert_quote_to_job', { p_quote_id: quoteId });
-  if (error) throw error;
-  return data;
-}

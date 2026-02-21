@@ -41,10 +41,7 @@ export default function CustomizationTab({ configs, setConfigs }) {
 
   const getConfig = (type) => configs.find(c => c.config_type === type);
 
-  const jobStatusesConfig = getConfig('job_statuses');
-  const jobPrioritiesConfig = getConfig('job_priorities');
-
-  const generateValue = (label) => {
+  const generateValue = () => {
     const timestamp = Date.now();
     const random = Math.floor(Math.random() * 1000);
     return `custom_${timestamp}_${random}`;
@@ -70,7 +67,7 @@ export default function CustomizationTab({ configs, setConfigs }) {
       // Generate value automatically if it's a new status
       const finalStatusForm = {
         ...statusForm,
-        value: statusForm.isNew ? generateValue(statusForm.label) : statusForm.value
+        value: statusForm.isNew ? generateValue() : statusForm.value
       };
       delete finalStatusForm.isNew;
 
