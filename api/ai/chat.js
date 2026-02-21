@@ -1,6 +1,7 @@
 import { generateText } from 'ai';
 import { createClient } from '@supabase/supabase-js';
-import { chatModel } from '../lib/ai/config.js';
+import { createChatModel } from '../lib/ai/config.js';
+import { getOpenAIKey } from '../lib/ai/getApiKeys.js';
 import { crmTools } from '../lib/ai/tools.js';
 import { chatSystemPrompt } from '../lib/ai/prompts.js';
 
@@ -31,6 +32,12 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Resolve OpenAI key (env var or DB)
+    const openAIKey = await getOpenAIKey();
+    if (!openAIKey) {
+      return res.status(503).json({ error: 'מפתח OpenAI לא מוגדר — הגדר אותו בהגדרות האינטגרציות' });
+    }
+
     // Get or create conversation
     let convId = conversationId || null;
 
@@ -64,7 +71,7 @@ export default async function handler(req, res) {
 
     // Call GPT-4o-mini with CRM tools
     const { text } = await generateText({
-      model: chatModel,
+      model: createChatModel(openAIKey),
       system: chatSystemPrompt,
       messages,
       tools: crmTools,
