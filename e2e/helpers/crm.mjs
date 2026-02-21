@@ -31,6 +31,7 @@ export function toCalendarDayKey(offsetDays = 0) {
 function expectedUrlRegex(moduleKey) {
   const map = {
     dashboard: /\/((Dashboard)?)(\?.*)?$/,
+    leads: /\/leads(\?.*)?$/,
     clients: /\/clients(\?.*)?$/,
     quotes: /\/quotes(\?.*)?$/,
     jobs: /\/jobs(\?.*)?$/,

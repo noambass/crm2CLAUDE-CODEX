@@ -40,6 +40,10 @@ const EMPTY_FORM = {
   status: 'active',
 };
 
+function normalizeAccountStatus(value) {
+  return value === 'lead' || value === 'active' || value === 'inactive' ? value : null;
+}
+
 export default function ClientForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -49,11 +53,15 @@ export default function ClientForm() {
   const urlParams = new URLSearchParams(window.location.search);
   const accountId = routeAccountId || urlParams.get('id');
   const isEditing = Boolean(accountId);
+  const statusFromQuery = normalizeAccountStatus(urlParams.get('status'));
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
-  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [formData, setFormData] = useState(() => ({
+    ...EMPTY_FORM,
+    status: statusFromQuery || EMPTY_FORM.status,
+  }));
 
   const isCompanyType = formData.clientType === 'company' || formData.clientType === 'bath_company';
 
@@ -149,8 +157,9 @@ export default function ClientForm() {
       }
 
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
-      navigate(createPageUrl('Clients'));
+      navigate(createPageUrl(payload.status === 'lead' ? 'Leads' : 'Clients'));
     } catch (error) {
       console.error('Error saving client:', error);
       toast.error('שגיאה בשמירת לקוח', {

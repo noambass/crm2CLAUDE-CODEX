@@ -130,6 +130,9 @@ export default function QuoteDetails() {
 
       setQuote((prev) => ({ ...prev, status: nextStatus }));
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('הסטטוס עודכן בהצלחה');
     } catch (error) {
       console.error('Error updating quote status:', error);
@@ -176,6 +179,9 @@ export default function QuoteDetails() {
       setQuote((prev) => ({ ...prev, converted_job_id: createdJobId }));
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
 
       toast.success('ההצעה הומרה לעבודה בהצלחה');
       navigate(createPageUrl(`JobDetails?id=${createdJobId}`));
@@ -242,6 +248,9 @@ export default function QuoteDetails() {
 
       setQuote((prev) => (prev ? { ...prev, status: targetStatus } : prev));
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('סטטוס ההצעה עודכן ידנית');
     } catch (error) {
       console.error('Error updating quote status manually:', error);

@@ -9,6 +9,8 @@ import {
   updateContactById,
   deleteContactById,
   setPrimaryContact,
+  setAccountStatus,
+  setAccountClientType,
 } from '@/data/clientsRepo';
 import { listQuotesByAccount } from '@/data/quotesRepo';
 import { listJobsByAccount } from '@/data/jobsRepo';
@@ -16,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ClientStatusBadge, ClientTypeBadge } from '@/components/ui/DynamicStatusBadge';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import EmptyState from '@/components/shared/EmptyState';
@@ -41,6 +44,8 @@ export default function ClientDetails() {
   const [editingId, setEditingId] = useState(null); // contactId | 'new' | null
   const [editForm, setEditForm] = useState(EMPTY_CONTACT_FORM());
   const [saving, setSaving] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [updatingType, setUpdatingType] = useState(false);
 
   useEffect(() => {
     if (!user || !accountId) return;
@@ -166,6 +171,44 @@ export default function ClientDetails() {
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
+  async function handleStatusToggle() {
+    if (!profile?.account?.id) return;
+    const current = profile.account.status || 'active';
+    const nextStatus = current === 'lead' ? 'active' : 'lead';
+    setUpdatingStatus(true);
+    try {
+      await setAccountStatus(profile.account.id, nextStatus);
+      setProfile((prev) => (prev ? { ...prev, account: { ...prev.account, status: nextStatus } } : prev));
+      toast.success(nextStatus === 'lead' ? 'הלקוח הועבר ללידים' : 'הליד הומר ללקוח פעיל');
+    } catch (error) {
+      toast.error('שגיאה בעדכון סטטוס לקוח', {
+        description: getDetailedErrorReason(error, 'עדכון הסטטוס נכשל.'),
+        duration: 9000,
+      });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
+  async function handleClientTypeChange(nextType) {
+    if (!profile?.account?.id) return;
+    const currentType = profile.account.client_type || 'private';
+    if (nextType === currentType) return;
+    setUpdatingType(true);
+    try {
+      await setAccountClientType(profile.account.id, nextType);
+      setProfile((prev) => (prev ? { ...prev, account: { ...prev.account, client_type: nextType } } : prev));
+      toast.success('סוג הלקוח עודכן');
+    } catch (error) {
+      toast.error('שגיאה בעדכון סוג לקוח', {
+        description: getDetailedErrorReason(error, 'עדכון סוג הלקוח נכשל.'),
+        duration: 9000,
+      });
+    } finally {
+      setUpdatingType(false);
+    }
+  }
+
   if (isLoadingAuth || loading) return <LoadingSpinner />;
   if (!user) return null;
 
@@ -177,7 +220,12 @@ export default function ClientDetails() {
     <div dir="rtl" className="space-y-6 p-4 lg:p-8">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(createPageUrl('Clients'))} className="rounded-full">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate(createPageUrl((profile.account.status || 'active') === 'lead' ? 'Leads' : 'Clients'))}
+          className="rounded-full"
+        >
           <ArrowRight className="h-5 w-5" />
         </Button>
         <div className="flex-1">
@@ -191,6 +239,37 @@ export default function ClientDetails() {
           עריכת לקוח
         </Button>
       </div>
+
+      <Card className="border-0 shadow-sm">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleStatusToggle}
+            disabled={updatingStatus}
+            data-testid="client-details-toggle-status"
+          >
+            {(profile.account.status || 'active') === 'lead' ? 'הפוך ללקוח פעיל' : 'הפוך לליד'}
+          </Button>
+
+          <div className="sm:w-56">
+            <Select
+              value={profile.account.client_type || 'private'}
+              onValueChange={handleClientTypeChange}
+              disabled={updatingType}
+            >
+              <SelectTrigger data-testid="client-details-client-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="private">לקוח פרטי</SelectItem>
+                <SelectItem value="company">חברה</SelectItem>
+                <SelectItem value="bath_company">חברת אמבטיות</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick actions */}
       <div className="grid gap-4 sm:grid-cols-4">

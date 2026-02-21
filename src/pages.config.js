@@ -55,6 +55,7 @@ import Dashboard from './pages/Dashboard';
 import JobDetails from './pages/JobDetails';
 import JobForm from './pages/JobForm';
 import Jobs from './pages/Jobs';
+import Leads from './pages/Leads';
 import Map from './pages/Map';
 import QuoteDetails from './pages/QuoteDetails';
 import QuoteForm from './pages/QuoteForm';
@@ -72,6 +73,7 @@ export const PAGES = {
     "JobDetails": JobDetails,
     "JobForm": JobForm,
     "Jobs": Jobs,
+    "Leads": Leads,
     "Map": Map,
     "QuoteDetails": QuoteDetails,
     "QuoteForm": QuoteForm,

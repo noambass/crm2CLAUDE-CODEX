@@ -7,6 +7,7 @@ import logo from '@/assets/logo.png';
 import { Toaster } from 'sonner';
 import {
   Users,
+  UserPlus,
   Briefcase,
   Menu,
   Home,
@@ -212,7 +213,17 @@ export default function Layout({ children, currentPageName }) {
   const resolvedRole = user?.app_metadata?.role || user?.user_metadata?.role || 'admin';
   const roleLabel = resolvedRole === 'admin' ? 'מנהל' : 'עובד';
 
+  const navItemsWithLeads = useMemo(
+    () => [navItems[0], { name: 'לידים', icon: UserPlus, page: 'Leads' }, ...navItems.slice(1)],
+    [],
+  );
+  const mobileNavItemsWithLeads = useMemo(
+    () => [mobileNavItems[0], { name: 'לידים', icon: UserPlus, page: 'Leads' }, ...mobileNavItems.slice(1)],
+    [],
+  );
+
   const pageTitle = useMemo(() => {
+    if (currentPageName === 'Leads') return 'ניהול לידים';
     return pageTitleMap[currentPageName] || 'מערכת ניהול CRM';
   }, [currentPageName]);
 
@@ -232,7 +243,7 @@ export default function Layout({ children, currentPageName }) {
 
   const NavContent = ({ mobile = false }) => (
     <nav className="flex flex-col gap-1 p-2">
-      {navItems.map((item) => {
+      {navItemsWithLeads.map((item) => {
         const isActive = currentPageName === item.page;
         return (
           <Link
@@ -484,8 +495,8 @@ export default function Layout({ children, currentPageName }) {
         className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 px-2 pt-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
         style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
       >
-        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
-          {mobileNavItems.map((item) => {
+        <div className="mx-auto grid max-w-md grid-cols-6 gap-1">
+          {mobileNavItemsWithLeads.map((item) => {
             const isActive = currentPageName === item.page;
             return (
               <button

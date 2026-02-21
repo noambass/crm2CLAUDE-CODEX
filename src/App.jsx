@@ -12,6 +12,7 @@ import ClientForm from '@/pages/ClientForm';
 import QuoteForm from '@/pages/QuoteForm';
 import QuoteDetails from '@/pages/QuoteDetails';
 import Clients from '@/pages/Clients';
+import Leads from '@/pages/Leads';
 import Jobs from '@/pages/Jobs';
 import Quotes from '@/pages/Quotes';
 
@@ -84,6 +85,14 @@ const AuthenticatedApp = () => {
         element={
           <LayoutWrapper currentPageName="Clients">
             <Clients />
+          </LayoutWrapper>
+        }
+      />
+      <Route
+        path="/leads"
+        element={
+          <LayoutWrapper currentPageName="Leads">
+            <Leads />
           </LayoutWrapper>
         }
       />

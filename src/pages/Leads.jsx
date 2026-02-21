@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Search, Plus, Phone, MapPin, FileText, Briefcase, Trash2, UserPlus, User, Building2, Bath } from 'lucide-react';
+import { UserPlus, Search, Plus, Phone, MapPin, FileText, Briefcase, Trash2, User, Building2, Bath } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import { useAuth } from '@/lib/AuthContext';
 import {
@@ -15,19 +15,12 @@ import { getDetailedErrorReason } from '@/lib/errorMessages';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { ClientTypeBadge } from '@/components/ui/DynamicStatusBadge';
 import EnhancedEmptyState from '@/components/shared/EnhancedEmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 
-const STATUS_BADGE = {
-  lead: 'ליד',
-  active: 'פעיל',
-  inactive: 'לא פעיל',
-};
-
 const TYPE_TABS = [
-  { key: 'all', label: 'הכול', icon: Users },
+  { key: 'all', label: 'הכול', icon: UserPlus },
   { key: 'private', label: 'פרטי', icon: User },
   { key: 'company', label: 'חברה', icon: Building2 },
   { key: 'bath_company', label: 'חברת אמבטיות', icon: Bath },
@@ -45,14 +38,13 @@ function normalizeProfileForSort(profile) {
   return new Date(profile?.account?.updated_at || profile?.account?.created_at || 0).getTime();
 }
 
-export default function Clients() {
+export default function Leads() {
   const navigate = useNavigate();
   const { user, isLoadingAuth } = useAuth();
 
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const pendingDeletionRef = useRef(new Map());
 
@@ -72,16 +64,16 @@ export default function Clients() {
     if (!user) return;
 
     let mounted = true;
-    async function loadClientsPage() {
+    async function loadLeadsPage() {
       try {
-        const rows = await listClientProfiles({ statuses: ['active', 'inactive'] });
+        const rows = await listClientProfiles({ statuses: ['lead'] });
         if (!mounted) return;
         const sorted = rows.slice().sort((a, b) => normalizeProfileForSort(b) - normalizeProfileForSort(a));
         setProfiles(sorted);
       } catch (error) {
-        console.error('Error loading clients:', error);
-        toast.error('שגיאה בטעינת לקוחות', {
-          description: getDetailedErrorReason(error, 'טעינת הלקוחות נכשלה.'),
+        console.error('Error loading leads:', error);
+        toast.error('שגיאה בטעינת לידים', {
+          description: getDetailedErrorReason(error, 'טעינת הלידים נכשלה.'),
           duration: 9000,
         });
       } finally {
@@ -89,7 +81,7 @@ export default function Clients() {
       }
     }
 
-    loadClientsPage();
+    loadLeadsPage();
 
     return () => {
       mounted = false;
@@ -105,8 +97,6 @@ export default function Clients() {
       const accountName = getAccountLabel(profile.account);
       const contact = profile.primaryContact;
       const clientType = profile.account.client_type || 'private';
-
-      if (statusFilter !== 'all' && (profile.account.status || 'active') !== statusFilter) return false;
       if (typeFilter !== 'all' && clientType !== typeFilter) return false;
 
       if (!searchQuery.trim()) return true;
@@ -114,7 +104,7 @@ export default function Clients() {
       const haystack = `${accountName} ${contact?.phone || ''} ${contact?.email || ''}`.toLowerCase();
       return haystack.includes(q);
     });
-  }, [profiles, searchQuery, statusFilter, typeFilter]);
+  }, [profiles, searchQuery, typeFilter]);
 
   function restoreDeletedProfile(accountId) {
     const pending = pendingDeletionRef.current.get(accountId);
@@ -146,24 +136,24 @@ export default function Clients() {
 
       try {
         await deleteClient(accountId);
-        toast.success('הלקוח נמחק בהצלחה');
+        toast.success('הליד נמחק בהצלחה');
       } catch (error) {
-        console.error('Error deleting account:', error);
+        console.error('Error deleting lead:', error);
         setProfiles((prev) => {
           if (prev.some((item) => item.account.id === accountId)) return prev;
           const merged = [...prev, snapshot.profile];
           return merged.sort((a, b) => normalizeProfileForSort(b) - normalizeProfileForSort(a));
         });
-        toast.error('שגיאה במחיקת לקוח', {
-          description: getDetailedErrorReason(error, 'מחיקת הלקוח נכשלה.'),
+        toast.error('שגיאה במחיקת ליד', {
+          description: getDetailedErrorReason(error, 'מחיקת הליד נכשלה.'),
         });
       }
     }, DELETE_UNDO_MS);
 
     pendingDeletionRef.current.set(accountId, { timer, profile });
 
-    toast('הלקוח יסומן למחיקה', {
-      description: `הלקוח "${accountLabel}" יימחק בעוד ${DELETE_UNDO_MS / 1000} שניות.`,
+    toast('הליד יסומן למחיקה', {
+      description: `הליד "${accountLabel}" יימחק בעוד ${DELETE_UNDO_MS / 1000} שניות.`,
       action: {
         label: 'בטל',
         onClick: () => restoreDeletedProfile(accountId),
@@ -172,20 +162,20 @@ export default function Clients() {
     });
   }
 
-  async function convertToLead(profile) {
+  async function convertToActive(profile) {
     const accountId = profile.account.id;
     setProfiles((prev) => prev.filter((item) => item.account.id !== accountId));
     try {
-      await setAccountStatus(accountId, 'lead');
-      toast.success('הלקוח הועבר ללידים');
+      await setAccountStatus(accountId, 'active');
+      toast.success('הליד הומר ללקוח פעיל');
     } catch (error) {
       setProfiles((prev) => {
         if (prev.some((item) => item.account.id === accountId)) return prev;
         const merged = [...prev, profile];
         return merged.sort((a, b) => normalizeProfileForSort(b) - normalizeProfileForSort(a));
       });
-      toast.error('שגיאה בעדכון סטטוס לקוח', {
-        description: getDetailedErrorReason(error, 'עדכון הסטטוס נכשל.'),
+      toast.error('שגיאה בהמרת ליד ללקוח', {
+        description: getDetailedErrorReason(error, 'המרת הליד נכשלה.'),
       });
     }
   }
@@ -205,7 +195,7 @@ export default function Clients() {
 
     try {
       await setAccountClientType(accountId, nextType);
-      toast.success('סוג הלקוח עודכן');
+      toast.success('סוג הליד עודכן');
     } catch (error) {
       setProfiles((prev) =>
         prev.map((item) =>
@@ -214,8 +204,8 @@ export default function Clients() {
             : item,
         ),
       );
-      toast.error('שגיאה בעדכון סוג לקוח', {
-        description: getDetailedErrorReason(error, 'עדכון סוג הלקוח נכשל.'),
+      toast.error('שגיאה בעדכון סוג ליד', {
+        description: getDetailedErrorReason(error, 'עדכון סוג הליד נכשל.'),
       });
     }
   }
@@ -227,12 +217,16 @@ export default function Clients() {
     <div dir="rtl" className="space-y-6 p-4 lg:p-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 lg:text-3xl">לקוחות</h1>
-          <p className="mt-1 text-slate-500">{profiles.length} לקוחות פעילים/לא פעילים</p>
+          <h1 className="text-2xl font-bold text-slate-800 lg:text-3xl">לידים</h1>
+          <p className="mt-1 text-slate-500">{profiles.length} לידים במערכת</p>
         </div>
-        <Button onClick={() => navigate(createPageUrl('ClientForm'))} className="bg-[#00214d] hover:opacity-90">
+        <Button
+          data-testid="lead-new-button"
+          onClick={() => navigate(createPageUrl('ClientForm?status=lead'))}
+          className="bg-[#00214d] hover:opacity-90"
+        >
           <Plus className="ml-2 h-4 w-4" />
-          לקוח חדש
+          ליד חדש
         </Button>
       </div>
 
@@ -270,42 +264,30 @@ export default function Clients() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <Input
-                placeholder="חיפוש לפי שם, טלפון או אימייל"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="pr-10"
-              />
-            </div>
-
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
-            >
-              <option value="all">כל הסטטוסים</option>
-              <option value="active">פעיל</option>
-              <option value="inactive">לא פעיל</option>
-            </select>
+          <div className="relative flex-1">
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="חיפוש לפי שם, טלפון או אימייל"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="pr-10"
+            />
           </div>
         </CardContent>
       </Card>
 
       {filtered.length === 0 ? (
         <EnhancedEmptyState
-          icon={Users}
-          title={searchQuery || statusFilter !== 'all' || typeFilter !== 'all' ? 'לא נמצאו לקוחות תואמים' : 'אין לקוחות להצגה'}
+          icon={UserPlus}
+          title={searchQuery || typeFilter !== 'all' ? 'לא נמצאו לידים תואמים' : 'אין לידים להצגה'}
           description={
-            searchQuery || statusFilter !== 'all' || typeFilter !== 'all'
+            searchQuery || typeFilter !== 'all'
               ? 'נסה לשנות את פילטרי החיפוש.'
-              : 'צור לקוח חדש או המר ליד ללקוח פעיל.'
+              : 'לידים יכולים להיווצר ידנית או דרך ה-AI.'
           }
           primaryAction={{
-            label: 'לקוח חדש',
-            onClick: () => navigate(createPageUrl('ClientForm')),
+            label: 'ליד חדש',
+            onClick: () => navigate(createPageUrl('ClientForm?status=lead')),
           }}
         />
       ) : (
@@ -313,11 +295,10 @@ export default function Clients() {
           {filtered.map((profile) => {
             const account = profile.account;
             const contact = profile.primaryContact;
-            const status = account.status || 'active';
             const clientType = account.client_type || 'private';
 
             return (
-              <Card key={account.id} data-testid={`client-card-${account.id}`} className="border-0 shadow-sm transition-all hover:shadow-md">
+              <Card key={account.id} data-testid={`lead-card-${account.id}`} className="border-0 shadow-sm transition-all hover:shadow-md">
                 <CardContent className="flex flex-col gap-4 p-4">
                   <button
                     type="button"
@@ -326,7 +307,9 @@ export default function Clients() {
                   >
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <h4 className="font-semibold text-slate-800">{getAccountLabel(account)}</h4>
-                      <Badge variant="outline">{STATUS_BADGE[status] || status}</Badge>
+                      <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        ליד
+                      </span>
                       <ClientTypeBadge type={clientType} />
                     </div>
                     <div className="space-y-1 text-xs text-slate-500">
@@ -351,7 +334,7 @@ export default function Clients() {
                   </button>
 
                   <select
-                    data-testid={`client-type-${account.id}`}
+                    data-testid={`lead-client-type-${account.id}`}
                     value={clientType}
                     onChange={(event) => changeClientType(profile, event.target.value)}
                     className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs"
@@ -376,11 +359,11 @@ export default function Clients() {
                       type="button"
                       size="sm"
                       variant="outline"
-                      data-testid={`client-convert-lead-${account.id}`}
-                      onClick={() => convertToLead(profile)}
+                      data-testid={`lead-convert-${account.id}`}
+                      onClick={() => convertToActive(profile)}
                     >
                       <UserPlus className="ml-1 h-4 w-4" />
-                      הפוך לליד
+                      הפוך ללקוח
                     </Button>
                     <Button
                       type="button"

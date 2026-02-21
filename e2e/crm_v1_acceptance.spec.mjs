@@ -19,6 +19,7 @@ test.describe.serial('CRM v1 acceptance', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await ensureLoggedIn(page);
 
+    await openModule(page, 'leads');
     await openModule(page, 'clients');
     await openModule(page, 'quotes');
     await openModule(page, 'jobs');
@@ -93,5 +94,45 @@ test.describe.serial('CRM v1 acceptance', () => {
     await page.getByTestId('map-selected-open-calendar').click();
     await expect(page.getByTestId('calendar-page')).toBeVisible();
     await expect(page.getByText(mapJobTitle)).toBeVisible();
+  });
+
+  test('lead lifecycle: create lead -> set type -> create job -> becomes active -> convert back to lead', async ({ page }) => {
+    await ensureLoggedIn(page);
+
+    const unique = Date.now();
+    const leadName = `Lead E2E ${unique}`;
+    const leadPhone = `05${String(unique).slice(-8)}`;
+    const jobTitle = `Job from lead ${unique}`;
+
+    await page.goto('/clients/new?status=lead');
+    await page.getByTestId('client-full-name').fill(leadName);
+    await page.getByTestId('client-phone').fill(leadPhone);
+    await page.getByTestId('client-save-button').click();
+    await expect(page).toHaveURL('/leads');
+    await expect(page.getByText(leadName).first()).toBeVisible();
+
+    await page.getByText(leadName).first().click();
+    await expect(page).toHaveURL(/ClientDetails\?id=[0-9a-f-]{36}/i);
+    const accountId = new URL(page.url()).searchParams.get('id');
+    expect(accountId).toBeTruthy();
+
+    await page.getByTestId('client-details-client-type').click();
+    await page.locator('[role="option"]').nth(1).click();
+
+    await page.goto(`/jobs/new?account_id=${accountId}`);
+    await page.getByTestId('job-title').fill(jobTitle);
+    await page.getByTestId('job-save-button').click();
+    await expect(page).toHaveURL(/\/jobs\/[0-9a-f-]{36}$/i);
+
+    await page.goto('/clients');
+    await page.getByPlaceholder(/חיפוש/i).fill(leadName);
+    await expect(page.getByText(leadName).first()).toBeVisible();
+
+    await page.getByTestId(`client-convert-lead-${accountId}`).click();
+    await expect(page.getByText(leadName).first()).toHaveCount(0);
+
+    await page.goto('/leads');
+    await page.getByPlaceholder(/חיפוש/i).fill(leadName);
+    await expect(page.getByText(leadName).first()).toBeVisible();
   });
 });

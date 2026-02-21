@@ -33,6 +33,10 @@ export function createPageUrl(pageName: string) {
         return '/clients';
     }
 
+    if (rawPage === 'Leads') {
+        return '/leads';
+    }
+
     if (rawPage === 'Jobs') {
         return '/jobs';
     }

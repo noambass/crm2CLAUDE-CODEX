@@ -584,6 +584,9 @@ export default function JobForm() {
       queryClient.invalidateQueries({ queryKey: ['quotes'] });
       queryClient.invalidateQueries({ queryKey: ['calendar'] });
       queryClient.invalidateQueries({ queryKey: ['map'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
 
       toast.success(isEditing ? 'העבודה עודכנה בהצלחה' : 'העבודה נוצרה בהצלחה');
       navigate(createPageUrl(`JobDetails?id=${savedId}`));
