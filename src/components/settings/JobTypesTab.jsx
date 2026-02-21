@@ -150,8 +150,8 @@ export default function JobTypesTab() {
                         size="icon"
                         onClick={() => saveEditedType(index)}
                         disabled={saving}
-                        style={{ backgroundColor: '#00214d' }}
-                        className="hover:opacity-90"
+                        
+                        className="app-cta"
                       >
                         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                       </Button>
@@ -216,8 +216,8 @@ export default function JobTypesTab() {
             <Button
               onClick={addJobType}
               disabled={!newType.label.trim() || saving}
-              style={{ backgroundColor: '#00214d' }}
-              className="hover:opacity-90"
+              
+              className="app-cta"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Plus className="w-4 h-4 ml-2" />}
               הוסף

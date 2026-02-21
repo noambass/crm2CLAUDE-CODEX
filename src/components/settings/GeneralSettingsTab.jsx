@@ -241,8 +241,8 @@ export default function GeneralSettingsTab() {
       <Button
         onClick={saveSettings}
         disabled={saving}
-        style={{ backgroundColor: '#00214d' }}
-        className="hover:opacity-90"
+        
+        className="app-cta"
       >
         {saving ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Save className="w-4 h-4 ml-2" />}
         שמור הגדרות

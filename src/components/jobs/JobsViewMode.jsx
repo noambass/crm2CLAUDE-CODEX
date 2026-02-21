@@ -105,7 +105,7 @@ function JobCardContent({ job, isExpanded }) {
                 return (
                   <li key={line.id || idx} className="flex items-center justify-between gap-2 text-foreground">
                     <span className="flex items-center gap-1.5 truncate">
-                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#00214d] text-[9px] font-bold text-white dark:bg-blue-600">{idx + 1}</span>
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white dark:bg-blue-600">{idx + 1}</span>
                       <span className="truncate">{line.description || 'שירות'}</span>
                     </span>
                     <span dir="ltr" className="shrink-0 font-medium">
@@ -141,7 +141,7 @@ export function JobsListView({ jobs, navigate, isExpandedCards }) {
       {jobs.map((job) => (
         <Card
           key={job.id}
-          className="cursor-pointer border border-border bg-card transition-all duration-200 hover:border-[#00214d]/30 hover:shadow-md dark:hover:border-[#00214d]/40"
+          className="cursor-pointer border border-border bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md dark:hover:border-primary/40"
           onClick={() => navigate(createPageUrl(`JobDetails?id=${job.id}`))}
         >
           <CardContent className="p-4">
@@ -182,7 +182,7 @@ export function JobsByStatusView({ jobs, navigate, isExpandedCards }) {
               {items.map((job) => (
                 <Card
                   key={job.id}
-                  className="cursor-pointer border border-border bg-card transition-all duration-200 hover:border-[#00214d]/30 hover:shadow-md dark:hover:border-[#00214d]/40"
+                  className="cursor-pointer border border-border bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md dark:hover:border-primary/40"
                   onClick={() => navigate(createPageUrl(`JobDetails?id=${job.id}`))}
                 >
                   <CardContent className="p-4">
@@ -226,7 +226,7 @@ export function JobsByClientsView({ jobs, navigate, isExpandedCards }) {
             {grouped[accountName].map((job) => (
               <Card
                 key={job.id}
-                className="cursor-pointer border border-border bg-card transition-all duration-200 hover:border-[#00214d]/30 hover:shadow-md dark:hover:border-[#00214d]/40"
+                className="cursor-pointer border border-border bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md dark:hover:border-primary/40"
                 onClick={() => navigate(createPageUrl(`JobDetails?id=${job.id}`))}
               >
                 <CardContent className="p-4">
@@ -261,7 +261,7 @@ export function JobsByDateView({ jobs, navigate, isExpandedCards }) {
   function JobCard({ job }) {
     return (
       <Card
-        className="cursor-pointer border border-border bg-card transition-all duration-200 hover:border-[#00214d]/30 hover:shadow-md dark:hover:border-[#00214d]/40"
+        className="cursor-pointer border border-border bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md dark:hover:border-primary/40"
         onClick={() => navigate(createPageUrl(`JobDetails?id=${job.id}`))}
       >
         <CardContent className="p-4">

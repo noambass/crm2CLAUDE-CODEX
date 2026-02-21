@@ -367,7 +367,7 @@ export default function GenerateInvoiceDialog({ open, onOpenChange, job, account
           </div>
 
           {/* Totals */}
-          <div className="rounded-xl border border-[#00214d]/20 bg-gradient-to-br from-[#001335] to-[#00214d] p-4 text-white">
+          <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/90 to-primary p-4 text-white">
             <div className="grid grid-cols-3 gap-3 text-center">
               <div>
                 <p className="text-xs text-blue-100">לפני מע"מ</p>

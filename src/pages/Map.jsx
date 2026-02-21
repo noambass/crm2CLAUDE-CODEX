@@ -31,6 +31,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NativeSelect } from '@/components/ui/native-select';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
 import { JobStatusBadge, NextActionBadge, PriorityBadge } from '@/components/ui/DynamicStatusBadge';
 import { toast } from 'sonner';
@@ -423,7 +424,7 @@ export default function JobsMapPage() {
               type="button"
               size="sm"
               variant={isCompactSidebar ? 'default' : 'ghost'}
-              className={isCompactSidebar ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
+              className={isCompactSidebar ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''}
               onClick={() => setPreference('mapSidebarMode', 'compact')}
             >
               <Rows3 className="ml-1 h-4 w-4" />
@@ -433,7 +434,7 @@ export default function JobsMapPage() {
               type="button"
               size="sm"
               variant={isCompactSidebar ? 'ghost' : 'default'}
-              className={!isCompactSidebar ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
+              className={!isCompactSidebar ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''}
               onClick={() => setPreference('mapSidebarMode', 'expanded')}
             >
               <LayoutGrid className="ml-1 h-4 w-4" />
@@ -638,7 +639,7 @@ export default function JobsMapPage() {
                     type="button"
                     variant={mobileSheetMode === 'collapsed' ? 'default' : 'outline'}
                     size="icon"
-                    className={mobileSheetMode === 'collapsed' ? 'h-7 w-7 bg-[#00214d] text-white' : 'h-7 w-7'}
+                    className={mobileSheetMode === 'collapsed' ? 'h-7 w-7 bg-primary text-primary-foreground' : 'h-7 w-7'}
                     onClick={() => setMobileSheet('collapsed')}
                   >
                     <Minus className="h-3.5 w-3.5" />
@@ -647,7 +648,7 @@ export default function JobsMapPage() {
                     type="button"
                     variant={mobileSheetMode === 'half' ? 'default' : 'outline'}
                     size="icon"
-                    className={mobileSheetMode === 'half' ? 'h-7 w-7 bg-[#00214d] text-white' : 'h-7 w-7'}
+                    className={mobileSheetMode === 'half' ? 'h-7 w-7 bg-primary text-primary-foreground' : 'h-7 w-7'}
                     onClick={() => setMobileSheet('half')}
                   >
                     <ChevronUp className="h-3.5 w-3.5" />
@@ -656,7 +657,7 @@ export default function JobsMapPage() {
                     type="button"
                     variant={mobileSheetMode === 'full' ? 'default' : 'outline'}
                     size="icon"
-                    className={mobileSheetMode === 'full' ? 'h-7 w-7 bg-[#00214d] text-white' : 'h-7 w-7'}
+                    className={mobileSheetMode === 'full' ? 'h-7 w-7 bg-primary text-primary-foreground' : 'h-7 w-7'}
                     onClick={() => setMobileSheet('full')}
                   >
                     <ChevronDown className="h-3.5 w-3.5" />
@@ -726,7 +727,7 @@ export default function JobsMapPage() {
 
             <div className="space-y-1">
               <Label htmlFor="map-schedule-time">שעה</Label>
-              <select
+              <NativeSelect
                 id="map-schedule-time"
                 data-testid="map-schedule-time"
                 value={scheduleData.time}
@@ -742,7 +743,7 @@ export default function JobsMapPage() {
                 {TIME_OPTIONS_10_MIN.map((time) => (
                   <option key={time} value={time}>{time}</option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
           </div>
 
@@ -751,7 +752,7 @@ export default function JobsMapPage() {
               data-testid="map-schedule-save"
               onClick={handleScheduleJob}
               disabled={!scheduleData.date || !scheduleData.time}
-              className="bg-[#00214d] text-white hover:opacity-90"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               שמירה
             </Button>

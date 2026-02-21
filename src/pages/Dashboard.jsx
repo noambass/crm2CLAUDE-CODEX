@@ -8,6 +8,7 @@ import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import PageHeader from '@/components/shared/PageHeader';
 import { isScheduledAtValid, parseValidScheduledAt } from '@/lib/jobs/scheduleValidity';
 import { useDashboardLayout } from '@/components/dashboard/useDashboardLayout';
 import { WIDGET_REGISTRY } from '@/components/dashboard/widgetRegistry';
@@ -180,35 +181,30 @@ export default function Dashboard() {
   if (currentRow.length > 0) widgetRows.push(currentRow);
 
   return (
-    <div dir="rtl" className="space-y-6 p-4 lg:p-8">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 lg:text-3xl">{greeting}</h1>
-          <p className="mt-1 flex items-center gap-2 text-slate-500 dark:text-slate-400">
-            <CalendarIcon className="h-4 w-4" />
-            {format(today, 'EEEE, dd MMMM yyyy', { locale: he })}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setEditorOpen(true)}
-            className="gap-2"
-          >
-            <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">עריכת דשבורד</span>
-          </Button>
-          <Button
-            onClick={() => navigate(createPageUrl('JobForm'))}
-            className="bg-[#00214d] text-white hover:opacity-90"
-          >
-            <Plus className="ml-2 h-4 w-4" />
-            עבודה חדשה
-          </Button>
-        </div>
-      </div>
+    <div dir="rtl" className="app-page">
+            {/* Header */}
+      <PageHeader
+        title={greeting}
+        subtitle={format(today, 'EEEE, dd MMMM yyyy', { locale: he })}
+        icon={CalendarIcon}
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditorOpen(true)}
+              className="gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">עריכת דשבורד</span>
+            </Button>
+            <Button onClick={() => navigate(createPageUrl('JobForm'))} className="app-cta">
+              <Plus className="ml-2 h-4 w-4" />
+              עבודה חדשה
+            </Button>
+          </>
+        }
+      />
 
       {/* Widget Grid */}
       {widgetRows.map((row, rowIndex) => {

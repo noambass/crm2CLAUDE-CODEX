@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,7 +12,7 @@
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
+    --primary: 214 100% 15%;
     --primary-foreground: 0 0% 98%;
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 9%;
@@ -88,6 +90,7 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Heebo', sans-serif;
   }
 }
 
@@ -98,6 +101,34 @@
 
   .crm-accent-text {
     color: var(--crm-accent);
+  }
+
+  .app-page {
+    @apply space-y-6 p-4 lg:p-8;
+  }
+
+  .app-surface {
+    @apply rounded-xl border border-border/60 bg-card shadow-sm;
+  }
+
+  .app-segment {
+    @apply rounded-xl bg-muted/30 p-1 dark:bg-muted/20;
+  }
+
+  .app-segment-button {
+    @apply flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all;
+  }
+
+  .app-segment-button[data-active='true'] {
+    @apply bg-primary text-primary-foreground shadow-sm hover:bg-primary/90;
+  }
+
+  .app-segment-button[data-active='false'] {
+    @apply text-muted-foreground hover:bg-muted/60 hover:text-foreground;
+  }
+
+  .app-cta {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
   }
 
   .dark body {
@@ -159,18 +190,6 @@
 
   .dark .text-emerald-600 {
     color: rgb(52 211 153) !important;
-  }
-
-  .dark .bg-\[\#00214d\] {
-    background-color: hsl(217, 91%, 60%) !important;
-  }
-
-  .dark .hover\:bg-\[\#00214d\]\/90:hover {
-    background-color: hsl(217, 91%, 65%) !important;
-  }
-
-  .dark [style*="background-color: rgb(0, 33, 77)"] {
-    background-color: hsl(217, 91%, 60%) !important;
   }
 
   .dark .shadow-sm {

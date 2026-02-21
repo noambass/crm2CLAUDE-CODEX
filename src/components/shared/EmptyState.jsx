@@ -18,8 +18,8 @@ export default function EmptyState({
       {actionLabel && onAction &&
       <Button 
         onClick={onAction}
-        style={{ backgroundColor: '#00214d' }}
-        className="hover:opacity-90 shadow-lg"
+        
+        className="app-cta shadow-lg"
       >
           {actionLabel}
         </Button>

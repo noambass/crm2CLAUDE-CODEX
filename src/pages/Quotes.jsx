@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import EnhancedEmptyState from '@/components/shared/EnhancedEmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
+import { QUOTE_STATUS_PALETTE, STATUS_NEUTRAL_COLOR, alphaHex } from '@/lib/ui/statusPalette';
 
 const STATUS_TABS = [
   { key: 'all', label: 'הכול', icon: FileText },
@@ -21,13 +22,6 @@ const STATUS_TABS = [
   { key: 'approved', label: 'אושרה', icon: CheckCircle },
   { key: 'rejected', label: 'נדחתה', icon: XCircle },
 ];
-
-const QUOTE_STATUS_CONFIG = {
-  draft: { label: 'טיוטה', color: '#64748b' },
-  sent: { label: 'נשלחה', color: '#8b5cf6' },
-  approved: { label: 'אושרה', color: '#10b981' },
-  rejected: { label: 'נדחתה', color: '#ef4444' },
-};
 
 export default function Quotes() {
   const navigate = useNavigate();
@@ -100,7 +94,7 @@ export default function Quotes() {
   }
 
   return (
-    <div dir="rtl" className="space-y-6 p-4 lg:p-8">
+    <div dir="rtl" className="app-page">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 lg:text-3xl">הצעות מחיר</h1>
@@ -108,8 +102,8 @@ export default function Quotes() {
         </div>
         <Button
           onClick={() => navigate(createPageUrl('QuoteForm'))}
-          style={{ backgroundColor: '#00214d' }}
-          className="shadow-lg hover:opacity-90"
+          
+          className="app-cta shadow-lg"
         >
           <Plus className="ml-2 h-4 w-4" />
           הצעה חדשה
@@ -131,7 +125,7 @@ export default function Quotes() {
                     onClick={() => setStatusFilter(tab.key)}
                     className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                       isActive
-                        ? 'bg-[#00214d] text-white shadow-sm hover:bg-[#00214d]/90'
+                        ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90'
                         : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                     }`}
                   >
@@ -191,7 +185,7 @@ export default function Quotes() {
       ) : (
         <div className="space-y-2.5">
           {filteredQuotes.map((quote) => {
-            const statusCfg = QUOTE_STATUS_CONFIG[quote.status] || { label: quote.status, color: '#64748b' };
+            const statusCfg = QUOTE_STATUS_PALETTE[quote.status] || { label: quote.status, color: STATUS_NEUTRAL_COLOR };
             const accountName = getQuoteAccountName(quote);
             const isReadyToConvert = quote.status === 'approved' && !quote.converted_job_id;
             const quoteItems = Array.isArray(quote.quote_items) ? quote.quote_items : [];
@@ -210,7 +204,7 @@ export default function Quotes() {
             return (
               <Card
                 key={quote.id}
-                className="cursor-pointer border border-slate-200/80 bg-white shadow-sm transition-all hover:border-[#00214d]/20 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/80"
+                className="cursor-pointer border border-slate-200/80 bg-white shadow-sm transition-all hover:border-primary/20 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/80"
                 onClick={() => navigate(createPageUrl(`QuoteDetails?id=${quote.id}`))}
               >
                 <CardContent className="p-3.5">
@@ -221,7 +215,7 @@ export default function Quotes() {
                         <Badge
                           variant="outline"
                           style={{
-                            backgroundColor: `${statusCfg.color}20`,
+                            backgroundColor: alphaHex(statusCfg.color),
                             color: statusCfg.color,
                             borderColor: statusCfg.color,
                           }}

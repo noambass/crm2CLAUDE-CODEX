@@ -2,31 +2,22 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { getStatusPresentation } from '@/lib/workflow/statusPresentation';
 import { getNextAction } from '@/lib/workflow/nextActionResolver';
-
-const defaultJobPriorities = {
-  normal: { label: 'רגיל', color: '#64748b' },
-  urgent: { label: 'דחוף', color: '#ef4444' },
-};
-
-const defaultClientStatuses = {
-  lead: { label: 'ליד', color: '#f59e0b' },
-  active: { label: 'פעיל', color: '#10b981' },
-  inactive: { label: 'לא פעיל', color: '#94a3b8' },
-};
-
-const defaultQuoteStatuses = {
-  draft: { label: 'טיוטה', color: '#64748b' },
-  sent: { label: 'נשלחה', color: '#8b5cf6' },
-  approved: { label: 'אושרה', color: '#10b981' },
-  rejected: { label: 'נדחתה', color: '#ef4444' },
-};
+import {
+  CLIENT_STATUS_PALETTE,
+  CLIENT_TYPE_PALETTE,
+  JOB_PRIORITY_PALETTE,
+  NEXT_ACTION_TONE_COLORS,
+  QUOTE_STATUS_PALETTE,
+  STATUS_NEUTRAL_COLOR,
+  alphaHex,
+} from '@/lib/ui/statusPalette';
 
 function StyledBadge({ label, color, className = '' }) {
   return (
     <Badge
       variant="outline"
       style={{
-        backgroundColor: `${color}20`,
+        backgroundColor: alphaHex(color),
         color,
         borderColor: color,
       }}
@@ -48,13 +39,7 @@ export function NextActionBadge({ status }) {
   const action = getNextAction(status);
   if (!action) return null;
 
-  const color =
-    action.tone === 'warning'
-      ? '#d97706'
-      : action.tone === 'info'
-      ? '#0284c7'
-      : '#6366f1';
-
+  const color = NEXT_ACTION_TONE_COLORS[action.tone] || NEXT_ACTION_TONE_COLORS.default;
   return <StyledBadge label={`פעולה הבאה: ${action.label}`} color={color} className="text-[11px]" />;
 }
 
@@ -62,28 +47,22 @@ export function PriorityBadge({ priority }) {
   const normalized = String(priority || '').toLowerCase().trim();
   if (!normalized || normalized === 'normal') return null;
 
-  const cfg = defaultJobPriorities[normalized] || { label: priority, color: '#64748b' };
+  const cfg = JOB_PRIORITY_PALETTE[normalized] || { label: priority, color: STATUS_NEUTRAL_COLOR };
   return <StyledBadge label={cfg.label} color={cfg.color} />;
 }
 
 export function ClientStatusBadge({ status }) {
-  const cfg = defaultClientStatuses[status] || { label: status, color: '#64748b' };
+  const cfg = CLIENT_STATUS_PALETTE[status] || { label: status, color: STATUS_NEUTRAL_COLOR };
   return <StyledBadge label={cfg.label} color={cfg.color} />;
 }
 
 export function ClientTypeBadge({ type }) {
-  const cfg =
-    type === 'company'
-      ? { label: 'חברה', color: '#6366f1' }
-      : type === 'bath_company'
-      ? { label: 'חברת אמבטיות', color: '#0d9488' }
-      : { label: 'פרטי', color: '#14b8a6' };
-
+  const cfg = CLIENT_TYPE_PALETTE[type] || CLIENT_TYPE_PALETTE.private;
   return <StyledBadge label={cfg.label} color={cfg.color} />;
 }
 
 export function QuoteStatusBadge({ status }) {
-  const cfg = defaultQuoteStatuses[status] || { label: status, color: '#64748b' };
+  const cfg = QUOTE_STATUS_PALETTE[status] || { label: status, color: STATUS_NEUTRAL_COLOR };
   return <StyledBadge label={cfg.label} color={cfg.color} />;
 }
 

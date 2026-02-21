@@ -154,8 +154,8 @@ export default function CustomizationTab({ configs, setConfigs }) {
           </div>
           <Button
             onClick={() => openDialog(type)}
-            style={{ backgroundColor: '#00214d' }}
-            className="hover:opacity-90"
+            
+            className="app-cta"
             size="sm"
           >
             <Plus className="w-4 h-4 ml-2" />
@@ -322,8 +322,8 @@ export default function CustomizationTab({ configs, setConfigs }) {
             <Button 
               onClick={saveStatus} 
               disabled={saving || !statusForm.label}
-              style={{ backgroundColor: '#00214d' }}
-              className="hover:opacity-90"
+              
+              className="app-cta"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Save className="w-4 h-4 ml-2" />}
               שמור

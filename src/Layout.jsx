@@ -253,7 +253,7 @@ export default function Layout({ children, currentPageName }) {
             onClick={() => mobile && setMobileMenuOpen(false)}
             className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 ${
               isActive
-                ? 'bg-[#00214d] text-white shadow-lg'
+                ? 'bg-primary text-primary-foreground shadow-lg'
                 : 'text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
             }`}
           >
@@ -306,17 +306,12 @@ export default function Layout({ children, currentPageName }) {
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap');
-        * { font-family: 'Heebo', sans-serif; }
-      `}</style>
-
       <aside className="hidden lg:fixed lg:inset-y-0 lg:right-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-l border-slate-200 bg-white px-4 py-6 dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-4 flex items-center gap-3 px-4">
             <img src={preferences.themeMode === 'dark' ? '/logo-dark.png' : logo} alt="לוגו" className="h-12 w-auto" />
             <div>
-              <h1 className="text-lg font-bold text-[#00214d] dark:text-cyan-300">עולם הציפויים</h1>
+              <h1 className="text-lg font-bold text-primary dark:text-cyan-300">עולם הציפויים</h1>
               <p className="text-xs text-slate-500 dark:text-slate-300">מערכת ניהול</p>
             </div>
           </div>
@@ -326,7 +321,7 @@ export default function Layout({ children, currentPageName }) {
           <div className="mt-auto px-2">
             <Button
               type="button"
-              className="w-full bg-[#00214d] text-white shadow-lg hover:opacity-90"
+              className="w-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90"
               onClick={() => navigate(createPageUrl('JobForm'))}
             >
               <Plus className="ml-2 h-4 w-4" />
@@ -343,7 +338,7 @@ export default function Layout({ children, currentPageName }) {
                   onClick={() => navigate(createPageUrl('Settings'))}
                 >
                   <Avatar className="h-10 w-10">
-                    <AvatarFallback style={{ backgroundColor: '#e8f0f7', color: '#00214d' }}>
+                    <AvatarFallback className="bg-primary/10 text-primary">
                       {displayName?.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
@@ -377,7 +372,7 @@ export default function Layout({ children, currentPageName }) {
                 <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-6 dark:border-slate-800">
                   <img src={preferences.themeMode === 'dark' ? '/logo-dark.png' : logo} alt="לוגו" className="h-10 w-auto" />
                   <div>
-                    <h1 className="text-lg font-bold text-[#00214d] dark:text-cyan-300">עולם הציפויים</h1>
+                    <h1 className="text-lg font-bold text-primary dark:text-cyan-300">עולם הציפויים</h1>
                     <p className="text-xs text-slate-500 dark:text-slate-300">מערכת ניהול</p>
                   </div>
                 </div>
@@ -398,7 +393,7 @@ export default function Layout({ children, currentPageName }) {
               type="button"
               variant={mobileSearchOpen ? 'default' : 'outline'}
               size="icon"
-              className={mobileSearchOpen ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
+              className={mobileSearchOpen ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''}
               onClick={() => setMobileSearchOpen((prev) => !prev)}
             >
               <Search className="h-4 w-4" />
@@ -413,7 +408,7 @@ export default function Layout({ children, currentPageName }) {
               aria-label="הגדרות"
             >
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="text-sm" style={{ backgroundColor: '#e8f0f7', color: '#00214d' }}>
+                <AvatarFallback className="bg-primary/10 text-sm text-primary">
                   {displayName?.charAt(0)}
                 </AvatarFallback>
               </Avatar>
@@ -460,7 +455,7 @@ export default function Layout({ children, currentPageName }) {
             </div>
 
             <div className="relative">
-              <Button type="button" className="bg-[#00214d] text-white hover:opacity-90" onClick={() => setQuickCreateOpen((prev) => !prev)}>
+              <Button type="button" className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => setQuickCreateOpen((prev) => !prev)}>
                 <Plus className="ml-2 h-4 w-4" />
                 פעולה חדשה
               </Button>
@@ -506,7 +501,7 @@ export default function Layout({ children, currentPageName }) {
                 aria-current={isActive ? 'page' : undefined}
                 className={`flex min-h-14 flex-col items-center justify-center rounded-xl px-2 py-2 text-[11px] font-medium transition ${
                   isActive
-                    ? 'bg-[#00214d] text-white shadow-md dark:bg-cyan-900/60 dark:text-cyan-100'
+                    ? 'bg-primary text-primary-foreground shadow-md dark:bg-cyan-900/60 dark:text-cyan-100'
                     : 'text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                 }`}
               >
@@ -522,3 +517,4 @@ export default function Layout({ children, currentPageName }) {
     </div>
   );
 }
+

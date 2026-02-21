@@ -32,6 +32,7 @@ import { buildTenMinuteTimeOptions, isTenMinuteSlot, toTenMinuteSlot } from '@/l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NativeSelect } from '@/components/ui/native-select';
 import { Label } from '@/components/ui/label';
 import { JobStatusBadge, NextActionBadge, PriorityBadge } from '@/components/ui/DynamicStatusBadge';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
@@ -573,7 +574,7 @@ export default function JobDetails() {
             <Button
               type="button"
               onClick={openScheduleDialog}
-              className="bg-[#00214d] text-white hover:bg-[#00214d]/90"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={completing}
               data-testid="job-details-schedule-button"
             >
@@ -631,7 +632,7 @@ export default function JobDetails() {
           </div>
 
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-            <select
+            <NativeSelect
               data-testid="job-details-manual-status-select"
               value={manualStatus}
               onChange={(event) => setManualStatus(event.target.value)}
@@ -643,7 +644,7 @@ export default function JobDetails() {
                   {option.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             <Button
               type="button"
               variant="outline"
@@ -665,7 +666,7 @@ export default function JobDetails() {
 
       {/* Grand Total Banner */}
       {lineItems.length > 0 && (
-        <Card className="border-0 bg-gradient-to-l from-[#001335] to-[#00214d] shadow-lg">
+        <Card className="border-0 bg-gradient-to-l from-primary/90 to-primary shadow-lg">
           <CardContent className="p-5">
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <div className="col-span-2 sm:col-span-1">
@@ -723,7 +724,7 @@ export default function JobDetails() {
                   return (
                     <div key={line.id || idx} className="group rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-blue-200 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-blue-800">
                       <div className="flex items-start gap-3">
-                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#00214d] text-xs font-bold text-white dark:bg-blue-600">
+                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white dark:bg-blue-600">
                           {idx + 1}
                         </span>
                         <div className="min-w-0 flex-1">
@@ -739,7 +740,7 @@ export default function JobDetails() {
                         </div>
                         <div dir="ltr" className="shrink-0 rounded-lg bg-blue-50 px-3 py-2 text-center dark:bg-blue-950/30">
                           <p className="text-[10px] text-blue-500 dark:text-blue-400">סה"כ</p>
-                          <p className="text-lg font-bold text-[#00214d] dark:text-blue-300">₪{formatMoney(lineTotal)}</p>
+                          <p className="text-lg font-bold text-primary dark:text-blue-300">₪{formatMoney(lineTotal)}</p>
                         </div>
                       </div>
                     </div>
@@ -1024,7 +1025,7 @@ export default function JobDetails() {
 
             <div className="space-y-2">
               <Label htmlFor="job-details-schedule-time">שעה (24H, קפיצות 10 דקות)</Label>
-              <select
+              <NativeSelect
                 id="job-details-schedule-time"
                 data-testid="job-details-schedule-time"
                 value={scheduleData.time}
@@ -1036,7 +1037,7 @@ export default function JobDetails() {
                     {option}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
           </div>
 
@@ -1047,7 +1048,7 @@ export default function JobDetails() {
             <Button
               onClick={handleScheduleSave}
               disabled={scheduling || !scheduleData.date || !scheduleData.time}
-              className="bg-[#00214d] text-white hover:bg-[#00214d]/90"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               data-testid="job-details-schedule-save"
             >
               {scheduling ? 'שומר...' : 'שמור תזמון'}

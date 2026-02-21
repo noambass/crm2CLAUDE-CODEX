@@ -98,11 +98,11 @@ export default function Jobs() {
   const resultsCount = filteredJobs.length;
 
   return (
-    <div dir="rtl" className="space-y-6 p-4 lg:p-8">
+    <div dir="rtl" className="app-page">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground lg:text-3xl">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#00214d]/10 text-[#00214d] dark:bg-[#00214d]/20 dark:text-blue-400">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/20 dark:text-blue-400">
               <Briefcase className="h-5 w-5" />
             </span>
             עבודות
@@ -118,7 +118,7 @@ export default function Jobs() {
           </p>
         </div>
 
-        <Button onClick={() => navigate(createPageUrl('JobForm'))} className="bg-[#00214d] text-white shadow-sm hover:bg-[#00214d]/90">
+        <Button onClick={() => navigate(createPageUrl('JobForm'))} className="bg-primary text-primary-foreground shadow-sm hover:bg-primary/90">
           <Plus className="ml-2 h-4 w-4" />
           עבודה חדשה
         </Button>
@@ -155,7 +155,7 @@ export default function Jobs() {
                         onClick={() => setViewMode(tab.key)}
                         className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                           isActive
-                            ? 'bg-[#00214d] text-white shadow-sm hover:bg-[#00214d]/90'
+                            ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90'
                             : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                         }`}
                       >
@@ -171,7 +171,7 @@ export default function Jobs() {
                   type="button"
                   variant={isExpandedCards ? 'ghost' : 'default'}
                   size="sm"
-                  className={!isExpandedCards ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
+                  className={!isExpandedCards ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''}
                   onClick={() => setPreference('jobsView', 'compact_cards')}
                 >
                   <Rows3 className="ml-1 h-4 w-4" />
@@ -181,7 +181,7 @@ export default function Jobs() {
                   type="button"
                   variant={isExpandedCards ? 'default' : 'ghost'}
                   size="sm"
-                  className={isExpandedCards ? 'bg-[#00214d] text-white hover:bg-[#00214d]/90' : ''}
+                  className={isExpandedCards ? 'bg-primary text-primary-foreground hover:bg-primary/90' : ''}
                   onClick={() => setPreference('jobsView', 'expanded_cards')}
                 >
                   <LayoutGrid className="ml-1 h-4 w-4" />

@@ -30,14 +30,13 @@ import EmptyState from '@/components/shared/EmptyState';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
 import { QUOTE_ALLOWED_TRANSITIONS } from '@/lib/workflow/statusPolicy';
+import { QUOTE_STATUS_PALETTE, STATUS_NEUTRAL_COLOR } from '@/lib/ui/statusPalette';
 
-const QUOTE_STATUSES = [
-  { value: 'draft', label: 'טיוטה', color: '#64748b' },
-  { value: 'sent', label: 'נשלחה', color: '#8b5cf6' },
-  { value: 'approved', label: 'אושרה', color: '#10b981' },
-  { value: 'rejected', label: 'נדחתה', color: '#ef4444' },
-];
 const QUOTE_STATUS_ORDER = ['draft', 'sent', 'approved', 'rejected'];
+
+function getQuoteStatusCfg(status) {
+  return QUOTE_STATUS_PALETTE[status] || { label: status, color: STATUS_NEUTRAL_COLOR };
+}
 
 function findQuoteTransitionPath(fromStatus, toStatus) {
   if (!fromStatus || !toStatus) return null;
@@ -197,8 +196,8 @@ export default function QuoteDetails() {
   }
 
   const statusCfg = useMemo(() => {
-    if (!quote) return { label: '', color: '#64748b' };
-    return QUOTE_STATUSES.find((s) => s.value === quote.status) || { label: quote.status, color: '#64748b' };
+    if (!quote) return { label: '', color: STATUS_NEUTRAL_COLOR };
+    return getQuoteStatusCfg(quote.status);
   }, [quote]);
 
   const lineItems = useMemo(() => {
@@ -213,11 +212,11 @@ export default function QuoteDetails() {
       .filter((status) => status !== quote.status)
       .filter((status) => findQuoteTransitionPath(quote.status, status) !== null)
       .map((status) => {
-        const statusCfg = QUOTE_STATUSES.find((item) => item.value === status);
+        const statusCfg = getQuoteStatusCfg(status);
         return {
           value: status,
-          label: statusCfg?.label || status,
-          color: statusCfg?.color || '#64748b',
+          label: statusCfg.label || status,
+          color: statusCfg.color || STATUS_NEUTRAL_COLOR,
         };
       });
   }, [quote]);
@@ -360,7 +359,7 @@ export default function QuoteDetails() {
               <p className="text-xs text-slate-500 dark:text-slate-300">נוצרה בתאריך</p>
               <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{formatDateSafe(quote.created_at)}</p>
             </div>
-            <div className="rounded-xl border border-[#00214d]/20 bg-gradient-to-br from-[#001335] to-[#00214d] px-3 py-2 text-white dark:border-cyan-500/30 dark:from-slate-900 dark:to-[#1b4f84]">
+            <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/90 to-primary px-3 py-2 text-white dark:border-cyan-500/30 dark:from-slate-900 dark:to-[#1b4f84]">
               <p className="text-xs text-blue-100">סה"כ כולל מע"מ</p>
               <p className="mt-1 text-lg font-bold" dir="ltr">₪{grossTotal.toFixed(2)}</p>
             </div>
@@ -402,8 +401,8 @@ export default function QuoteDetails() {
                             <p className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">{item.description || 'שירות'}</p>
                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">שורה #{idx + 1}</p>
                           </div>
-                          <div className="rounded-xl bg-[#00214d]/10 px-3 py-1.5 dark:bg-cyan-500/15">
-                            <p dir="ltr" className="text-lg font-bold text-[#00214d] dark:text-cyan-300">
+                          <div className="rounded-xl bg-primary/10 px-3 py-1.5 dark:bg-cyan-500/15">
+                            <p dir="ltr" className="text-lg font-bold text-primary dark:text-cyan-300">
                               ₪{lineTotal.toFixed(2)}
                             </p>
                           </div>
@@ -427,7 +426,7 @@ export default function QuoteDetails() {
                     );
                   })}
 
-                  <div className="rounded-2xl border border-[#00214d]/20 bg-gradient-to-br from-[#001335] to-[#00214d] p-4 text-white shadow-lg dark:border-cyan-500/30 dark:from-slate-900 dark:to-[#1b4f84]">
+                  <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/90 to-primary p-4 text-white shadow-lg dark:border-cyan-500/30 dark:from-slate-900 dark:to-[#1b4f84]">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <div className="rounded-xl bg-white/10 px-3 py-2">
                         <p className="text-xs text-blue-100">לפני מע"מ</p>

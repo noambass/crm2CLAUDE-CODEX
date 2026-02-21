@@ -48,7 +48,7 @@ export default function FloatingActionButton() {
         <Button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className="h-14 w-14 rounded-full bg-[#00214d] text-white shadow-xl transition hover:opacity-90"
+          className="h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-xl transition hover:opacity-90"
           aria-label="פעולות יצירה מהירות"
         >
           {isOpen ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}

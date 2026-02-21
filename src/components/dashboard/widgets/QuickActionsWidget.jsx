@@ -9,7 +9,7 @@ export default function QuickActionsWidget() {
   const navigate = useNavigate();
 
   return (
-    <Card className="border-0 bg-gradient-to-l from-[#00214d] to-[#003580] shadow-sm">
+    <Card className="border-0 bg-gradient-to-l from-primary to-primary/80 shadow-sm">
       <CardContent className="flex flex-col items-start justify-between gap-4 p-6 text-white sm:flex-row sm:items-center">
         <div>
           <h3 className="text-xl font-bold">פעולות מהירות</h3>

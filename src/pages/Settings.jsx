@@ -238,7 +238,7 @@ export default function Settings() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div dir="rtl" className="p-4 lg:p-8 space-y-6">
+    <div dir="rtl" className="app-page">
       {/* Header */}
       <div>
         <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3">
@@ -285,7 +285,7 @@ export default function Settings() {
                 <CardTitle className="text-lg">ניהול עובדים</CardTitle>
                 <CardDescription>הוסף ונהל עובדים במערכת</CardDescription>
               </div>
-              <Button onClick={() => openEmployeeDialog()} style={{ backgroundColor: '#00214d' }} className="hover:opacity-90">
+              <Button onClick={() => openEmployeeDialog()}  className="app-cta">
                 <Plus className="w-4 h-4 ml-2" />
                 עובד חדש
               </Button>
@@ -457,8 +457,8 @@ export default function Settings() {
             <Button
               onClick={saveEmployee}
               disabled={savingEmployee || !employeeForm.full_name || !employeeForm.phone}
-              style={{ backgroundColor: '#00214d' }}
-              className="hover:opacity-90"
+              
+              className="app-cta"
             >
               {savingEmployee ? <Loader2 className="w-4 h-4 animate-spin ml-2" /> : <Save className="w-4 h-4 ml-2" />}
               שמור
@@ -486,3 +486,4 @@ export default function Settings() {
     </div>
   );
 }
+

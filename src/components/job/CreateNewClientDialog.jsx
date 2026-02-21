@@ -235,8 +235,8 @@ export default function CreateNewClientDialog({ open, onOpenChange, onClientCrea
           <Button
             onClick={handleSubmit}
             disabled={saving || !formData.account_name.trim()}
-            style={{ backgroundColor: '#00214d' }}
-            className="hover:opacity-90"
+            
+            className="app-cta"
           >
             {saving ? (
               <>

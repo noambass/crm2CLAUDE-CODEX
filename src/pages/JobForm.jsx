@@ -20,6 +20,7 @@ import { getClientProfile } from '@/data/clientsRepo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NativeSelect } from '@/components/ui/native-select';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import GooglePlacesInput from '@/components/shared/GooglePlacesInput';
@@ -647,7 +648,7 @@ export default function JobForm() {
                   }}
                   className={`rounded-xl px-2 py-2 text-[11px] font-medium transition ${
                     isActive
-                      ? 'bg-[#00214d] text-white'
+                      ? 'bg-primary text-primary-foreground'
                       : isDone
                         ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
                         : hasError
@@ -801,7 +802,7 @@ export default function JobForm() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="job-scheduled-time">שעה (24H, בקפיצות 10 דקות)</Label>
-                  <select
+                  <NativeSelect
                     id="job-scheduled-time"
                     data-testid="job-scheduled-time"
                     value={formData.scheduled_time}
@@ -812,7 +813,7 @@ export default function JobForm() {
                     {TIME_OPTIONS_10_MIN.map((time) => (
                       <option key={time} value={time}>{time}</option>
                     ))}
-                  </select>
+                  </NativeSelect>
                   {errors.scheduled_time ? <p className="text-xs text-red-600">{errors.scheduled_time}</p> : null}
                 </div>
               </div>
@@ -903,7 +904,7 @@ export default function JobForm() {
                                   <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing rounded p-1 hover:bg-slate-200 dark:hover:bg-slate-700">
                                     <GripVertical className="h-4 w-4 text-slate-400" />
                                   </div>
-                                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#00214d] text-xs font-bold text-white dark:bg-blue-600">
+                                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-white dark:bg-blue-600">
                                     {index + 1}
                                   </span>
                                   <div className="min-w-0 flex-1">
@@ -970,7 +971,7 @@ export default function JobForm() {
                                   </div>
                                   <div className="space-y-1">
                                     <Label className="text-xs text-slate-500 dark:text-slate-400">סה"כ שורה</Label>
-                                    <div className="flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-[#00214d] dark:border-slate-600 dark:bg-slate-900 dark:text-blue-300" dir="ltr">
+                                    <div className="flex h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-primary dark:border-slate-600 dark:bg-slate-900 dark:text-blue-300" dir="ltr">
                                       ₪{formatMoney(lineTotal)}
                                     </div>
                                   </div>
@@ -1008,7 +1009,7 @@ export default function JobForm() {
 
               {errors.line_items ? <p className="text-sm text-red-600">{errors.line_items}</p> : null}
 
-              <div className="space-y-3 rounded-xl bg-gradient-to-br from-[#001335] to-[#00214d] p-5 text-white shadow-lg">
+              <div className="space-y-3 rounded-xl bg-gradient-to-br from-primary/90 to-primary p-5 text-white shadow-lg">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-blue-200">סה"כ לפני מע"מ ({lineItems.length} שורות)</span>
                   <span dir="ltr" className="font-medium">₪{formatMoney(subtotal)}</span>
@@ -1032,8 +1033,8 @@ export default function JobForm() {
               data-testid="job-save-button"
               type="submit"
               disabled={saving}
-              style={{ backgroundColor: '#00214d' }}
-              className="flex-1 hover:opacity-90"
+              
+              className="app-cta flex-1"
             >
               {saving ? (
                 <>
@@ -1073,7 +1074,7 @@ export default function JobForm() {
                 type="submit"
                 form="job-form"
                 disabled={saving}
-                className="flex-1 bg-[#00214d] text-white hover:bg-[#00214d]/90"
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 {saving ? (
                   <>
@@ -1088,7 +1089,7 @@ export default function JobForm() {
                 )}
               </Button>
             ) : (
-              <Button type="button" className="flex-1 bg-[#00214d] text-white hover:bg-[#00214d]/90" onClick={handleNextStep} disabled={saving}>
+              <Button type="button" className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleNextStep} disabled={saving}>
                 הבא
               </Button>
             )}

@@ -36,8 +36,8 @@ export default function EnhancedEmptyState({
         {primaryAction && (
           <Button
             onClick={primaryAction.onClick}
-            style={{ backgroundColor: '#00214d' }}
-            className="hover:opacity-90"
+            
+            className="app-cta"
           >
             {primaryAction.label}
           </Button>

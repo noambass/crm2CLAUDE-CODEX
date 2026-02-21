@@ -15,6 +15,7 @@ import { getDetailedErrorReason } from '@/lib/errorMessages';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NativeSelect } from '@/components/ui/native-select';
 import { ClientTypeBadge } from '@/components/ui/DynamicStatusBadge';
 import EnhancedEmptyState from '@/components/shared/EnhancedEmptyState';
 import LoadingSpinner from '@/components/shared/LoadingSpinner';
@@ -214,7 +215,7 @@ export default function Leads() {
   if (!user) return null;
 
   return (
-    <div dir="rtl" className="space-y-6 p-4 lg:p-8">
+    <div dir="rtl" className="app-page">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 lg:text-3xl">לידים</h1>
@@ -223,7 +224,7 @@ export default function Leads() {
         <Button
           data-testid="lead-new-button"
           onClick={() => navigate(createPageUrl('ClientForm?status=lead'))}
-          className="bg-[#00214d] hover:opacity-90"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <Plus className="ml-2 h-4 w-4" />
           ליד חדש
@@ -245,7 +246,7 @@ export default function Leads() {
                     onClick={() => setTypeFilter(tab.key)}
                     className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                       isActive
-                        ? 'bg-[#00214d] text-white shadow-sm hover:bg-[#00214d]/90'
+                        ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90'
                         : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                     }`}
                   >
@@ -333,7 +334,7 @@ export default function Leads() {
                     </div>
                   </button>
 
-                  <select
+                  <NativeSelect
                     data-testid={`lead-client-type-${account.id}`}
                     value={clientType}
                     onChange={(event) => changeClientType(profile, event.target.value)}
@@ -344,7 +345,7 @@ export default function Leads() {
                         {option.label}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
 
                   <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                     <Button type="button" size="sm" variant="outline" onClick={() => navigate(createPageUrl(`QuoteForm?account_id=${account.id}`))}>

@@ -424,8 +424,8 @@ export default function ClientForm() {
             data-testid="client-save-button"
             type="submit"
             disabled={saving}
-            style={{ backgroundColor: '#00214d' }}
-            className="flex-1 hover:opacity-90"
+            
+            className="app-cta flex-1"
           >
             {saving ? (
               <>

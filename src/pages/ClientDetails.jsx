@@ -217,7 +217,7 @@ export default function ClientDetails() {
   }
 
   return (
-    <div dir="rtl" className="space-y-6 p-4 lg:p-8">
+    <div dir="rtl" className="app-page">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
@@ -340,7 +340,7 @@ export default function ClientDetails() {
                   />
                 </div>
                 <div className="flex gap-2 justify-end">
-                  <Button size="sm" onClick={handleSaveContact} disabled={saving} className="gap-1" style={{ backgroundColor: '#00214d' }}>
+                  <Button size="sm" onClick={handleSaveContact} disabled={saving} className="gap-1" >
                     <Check className="h-3.5 w-3.5" />
                     שמור
                   </Button>
@@ -427,7 +427,7 @@ export default function ClientDetails() {
                 />
               </div>
               <div className="flex gap-2 justify-end">
-                <Button size="sm" onClick={handleSaveContact} disabled={saving} className="gap-1" style={{ backgroundColor: '#00214d' }}>
+                <Button size="sm" onClick={handleSaveContact} disabled={saving} className="gap-1" >
                   <Check className="h-3.5 w-3.5" />
                   הוסף
                 </Button>
