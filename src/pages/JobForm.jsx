@@ -41,6 +41,7 @@ import CreateNewClientDialog from '@/components/job/CreateNewClientDialog';
 import { toast } from 'sonner';
 import { getDetailedErrorReason } from '@/lib/errorMessages';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import ServicePickerButton from '@/components/shared/ServicePickerButton';
 
 const EMPTY_LINE = () => ({
   id: crypto.randomUUID(),
@@ -988,9 +989,19 @@ export default function JobForm() {
                 </Droppable>
               </DragDropContext>
 
-              <Button type="button" variant="outline" onClick={addLineItem} className="w-full border-dashed gap-2">
-                <Plus className="h-4 w-4" /> הוסף שורת שירות
-              </Button>
+              <div className="flex gap-2 flex-wrap">
+                <Button type="button" variant="outline" onClick={addLineItem} className="flex-1 border-dashed gap-2">
+                  <Plus className="h-4 w-4" /> הוסף שורת שירות
+                </Button>
+                <ServicePickerButton
+                  onSelect={({ description, unit_price }) =>
+                    setLineItems((prev) => [
+                      ...prev,
+                      { id: crypto.randomUUID(), description, quantity: 1, unit_price },
+                    ])
+                  }
+                />
+              </div>
 
               {errors.line_items ? <p className="text-sm text-red-600">{errors.line_items}</p> : null}
 

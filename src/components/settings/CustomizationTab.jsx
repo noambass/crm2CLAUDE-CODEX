@@ -6,8 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from '@/api/supabaseClient';
 import { useAuth } from '@/lib/AuthContext';
-import { 
-  Plus, Edit, Trash2, Save, Loader2, Palette, Tag
+import {
+  Plus, Edit, Trash2, Save, Loader2, Palette, Tag, Lock
 } from 'lucide-react';
 import {
   Dialog,
@@ -17,6 +17,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+// Built-in statuses shown read-only in the UI (by config_type)
+const BUILTIN_STATUSES = {
+  job_statuses: [
+    { value: 'waiting_schedule', label: 'ממתין לתזמון', color: '#f59e0b' },
+    { value: 'waiting_execution', label: 'מתוזמן',       color: '#0284c7' },
+    { value: 'done',             label: 'בוצע',           color: '#10b981' },
+  ],
+  job_priorities: [],
+  client_statuses_private: [],
+  client_statuses_company: [],
+  client_statuses_customer_service: [],
+  invoice_statuses: [],
+};
 
 export default function CustomizationTab({ configs, setConfigs }) {
   const { user } = useAuth();
@@ -131,7 +145,8 @@ export default function CustomizationTab({ configs, setConfigs }) {
 
   const renderStatusList = (type, title, description) => {
     const config = getConfig(type);
-    const statuses = config?.config_data?.statuses || [];
+    const customStatuses = config?.config_data?.statuses || [];
+    const builtinStatuses = BUILTIN_STATUSES[type] || [];
 
     return (
       <Card className="border-0 shadow-sm">
@@ -140,7 +155,7 @@ export default function CustomizationTab({ configs, setConfigs }) {
             <CardTitle className="text-lg">{title}</CardTitle>
             <CardDescription>{description}</CardDescription>
           </div>
-          <Button 
+          <Button
             onClick={() => openDialog(type)}
             style={{ backgroundColor: '#00214d' }}
             className="hover:opacity-90"
@@ -151,32 +166,64 @@ export default function CustomizationTab({ configs, setConfigs }) {
           </Button>
         </CardHeader>
         <CardContent>
-          {statuses.length === 0 ? (
-            <div className="text-center py-8 text-slate-500">
-              <Tag className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-              <p>עדיין לא הוספו סטטוסים מותאמים אישית</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {statuses.map((status) => (
-                <div 
+          <div className="space-y-2">
+            {/* Built-in statuses (read-only) */}
+            {builtinStatuses.map((status) => (
+              <div
+                key={status.value}
+                className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 opacity-75"
+              >
+                <div
+                  className="w-4 h-4 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: status.color }}
+                />
+                <div className="flex-1">
+                  <p className="font-medium text-slate-800">{status.label}</p>
+                </div>
+                <Badge
+                  variant="outline"
+                  style={{
+                    backgroundColor: `${status.color}20`,
+                    color: status.color,
+                    borderColor: status.color,
+                  }}
+                >
+                  {status.label}
+                </Badge>
+                <Badge variant="outline" className="text-xs text-slate-500 border-slate-200 bg-slate-100 flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
+                  מובנה
+                </Badge>
+              </div>
+            ))}
+
+            {/* Custom statuses */}
+            {customStatuses.length === 0 && builtinStatuses.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                <Tag className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                <p>עדיין לא הוספו סטטוסים מותאמים אישית</p>
+              </div>
+            ) : customStatuses.length === 0 ? (
+              <p className="text-center py-4 text-sm text-slate-400">לחץ &quot;הוסף&quot; להוספת סטטוס מותאם אישית</p>
+            ) : (
+              customStatuses.map((status) => (
+                <div
                   key={status.value}
                   className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
                 >
-                  <div 
-                    className="w-4 h-4 rounded-full"
+                  <div
+                    className="w-4 h-4 rounded-full flex-shrink-0"
                     style={{ backgroundColor: status.color }}
                   />
                   <div className="flex-1">
                     <p className="font-medium text-slate-800">{status.label}</p>
-                    <p className="text-xs text-slate-500">{status.value}</p>
                   </div>
-                  <Badge 
-                    variant="outline" 
-                    style={{ 
+                  <Badge
+                    variant="outline"
+                    style={{
                       backgroundColor: `${status.color}20`,
                       color: status.color,
-                      borderColor: status.color
+                      borderColor: status.color,
                     }}
                   >
                     {status.label}
@@ -196,9 +243,9 @@ export default function CustomizationTab({ configs, setConfigs }) {
                     <Trash2 className="w-4 h-4 text-red-500" />
                   </Button>
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
     );

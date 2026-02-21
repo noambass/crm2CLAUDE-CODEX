@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Edit, Trash2, Save, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, Loader2, X } from 'lucide-react';
 import EmptyState from "@/components/shared/EmptyState";
 
 export default function JobTypesTab() {
@@ -14,7 +14,7 @@ export default function JobTypesTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
-  const [newType, setNewType] = useState({ label: '' });
+  const [newType, setNewType] = useState({ label: '', unit_price: '' });
 
   useEffect(() => {
     if (!user) return;
@@ -46,18 +46,17 @@ export default function JobTypesTab() {
     if (!user) return;
     setSaving(true);
     try {
-      const configData = {
-        config_type: 'job_types',
-        config_data: { types: updatedTypes },
-        is_active: true
-      };
-
       const { error } = await supabase
         .from('app_configs')
-        .upsert([{ ...configData, owner_id: user.id }], { onConflict: 'owner_id,config_type' });
+        .upsert([{
+          owner_id: user.id,
+          config_type: 'job_types',
+          config_data: { types: updatedTypes },
+          is_active: true,
+        }], { onConflict: 'owner_id,config_type' });
       if (error) throw error;
       setJobTypes(updatedTypes);
-      setNewType({ label: '' });
+      setNewType({ label: '', unit_price: '' });
       setEditingIndex(null);
     } catch (error) {
       console.error('Error saving job types:', error);
@@ -66,19 +65,14 @@ export default function JobTypesTab() {
     }
   };
 
-  const generateValue = (label) => {
-    const timestamp = Date.now();
-    return `type_${timestamp}`;
-  };
-
   const addJobType = () => {
-    if (newType.label) {
-      const typeWithValue = {
-        value: generateValue(newType.label),
-        label: newType.label
-      };
-      saveJobTypes([...jobTypes, typeWithValue]);
-    }
+    if (!newType.label.trim()) return;
+    const typeWithValue = {
+      value: `type_${Date.now()}`,
+      label: newType.label.trim(),
+      unit_price: newType.unit_price !== '' ? parseFloat(newType.unit_price) || 0 : 0,
+    };
+    saveJobTypes([...jobTypes, typeWithValue]);
   };
 
   const updateJobType = (index, field, value) => {
@@ -88,13 +82,16 @@ export default function JobTypesTab() {
   };
 
   const saveEditedType = (index) => {
-    saveJobTypes(jobTypes);
-    setEditingIndex(null);
+    const updated = [...jobTypes];
+    updated[index] = {
+      ...updated[index],
+      unit_price: parseFloat(updated[index].unit_price) || 0,
+    };
+    saveJobTypes(updated);
   };
 
   const deleteJobType = (index) => {
-    const updated = jobTypes.filter((_, i) => i !== index);
-    saveJobTypes(updated);
+    saveJobTypes(jobTypes.filter((_, i) => i !== index));
   };
 
   if (loading) {
@@ -108,59 +105,80 @@ export default function JobTypesTab() {
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-lg">ניהול סוגי עבודות</CardTitle>
-        <CardDescription>הגדר את סוגי העבודות שאתה מבצע</CardDescription>
+        <CardTitle className="text-lg">שירותים שמורים</CardTitle>
+        <CardDescription>
+          הגדר שירותים עם מחיר — ניתן לבחור אותם בעת יצירת עבודה או הצעת מחיר
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {jobTypes.length === 0 ? (
           <EmptyState
             icon={Plus}
-            title="אין סוגי עבודות"
-            description="הוסף סוגי עבודות להזנה מהירה בעבודות"
+            title="אין שירותים שמורים"
+            description="הוסף שירותים כדי לבחור מהם בעת יצירת עבודה"
           />
         ) : (
           <div className="space-y-3">
+            {/* Column headers */}
+            <div className="grid grid-cols-[1fr_100px_auto] gap-2 px-4 text-xs text-slate-500">
+              <span>שם השירות</span>
+              <span className="text-center">מחיר יחידה (₪)</span>
+              <span />
+            </div>
+
             {jobTypes.map((type, index) => (
-              <div key={index} className="flex gap-3 p-4 rounded-xl bg-slate-50">
+              <div key={index} className="grid grid-cols-[1fr_100px_auto] gap-2 items-center p-3 rounded-xl bg-slate-50">
                 {editingIndex === index ? (
                   <>
-                    <div className="flex-1">
-                      <Input
-                        value={type.label}
-                        onChange={(e) => updateJobType(index, 'label', e.target.value)}
-                        placeholder="שם סוג העבודה"
-                      />
+                    <Input
+                      value={type.label}
+                      onChange={(e) => updateJobType(index, 'label', e.target.value)}
+                      placeholder="שם השירות"
+                    />
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={type.unit_price ?? ''}
+                      onChange={(e) => updateJobType(index, 'unit_price', e.target.value)}
+                      placeholder="0"
+                      dir="ltr"
+                      className="text-center"
+                    />
+                    <div className="flex gap-1">
+                      <Button
+                        size="icon"
+                        onClick={() => saveEditedType(index)}
+                        disabled={saving}
+                        style={{ backgroundColor: '#00214d' }}
+                        className="hover:opacity-90"
+                      >
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => setEditingIndex(null)}>
+                        <X className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <Button
-                      size="icon"
-                      onClick={() => saveEditedType(index)}
-                      disabled={saving}
-                      style={{ backgroundColor: '#00214d' }}
-                      className="hover:opacity-90"
-                    >
-                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    </Button>
                   </>
                 ) : (
                   <>
-                    <div className="flex-1">
-                      <p className="font-semibold text-slate-800">{type.label}</p>
+                    <p className="font-semibold text-slate-800">{type.label}</p>
+                    <p className="text-center text-slate-600 text-sm" dir="ltr">
+                      {type.unit_price > 0 ? `₪${type.unit_price.toLocaleString('he-IL')}` : '—'}
+                    </p>
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" onClick={() => setEditingIndex(index)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteJobType(index)}
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setEditingIndex(index)}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => deleteJobType(index)}
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
                   </>
                 )}
               </div>
@@ -168,18 +186,36 @@ export default function JobTypesTab() {
           </div>
         )}
 
-        <div className="pt-4 border-t border-slate-200">
-          <Label className="mb-3 block">סוג עבודה חדש</Label>
-          <div className="flex gap-3">
-            <Input
-              value={newType.label}
-              onChange={(e) => setNewType({ label: e.target.value })}
-              placeholder="למשל: ציפוי אמבטיה, תיקון סדק, שיפוץ..."
-              className="flex-1"
-            />
+        {/* Add new service */}
+        <div className="pt-4 border-t border-slate-200 space-y-3">
+          <Label className="block">שירות חדש</Label>
+          <div className="grid grid-cols-[1fr_100px_auto] gap-2 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">שם השירות</Label>
+              <Input
+                value={newType.label}
+                onChange={(e) => setNewType({ ...newType, label: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && addJobType()}
+                placeholder="למשל: ציפוי אמבטיה, תיקון סדק..."
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">מחיר (₪)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={newType.unit_price}
+                onChange={(e) => setNewType({ ...newType, unit_price: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && addJobType()}
+                placeholder="0"
+                dir="ltr"
+                className="text-center"
+              />
+            </div>
             <Button
               onClick={addJobType}
-              disabled={!newType.label || saving}
+              disabled={!newType.label.trim() || saving}
               style={{ backgroundColor: '#00214d' }}
               className="hover:opacity-90"
             >
